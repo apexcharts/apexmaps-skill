@@ -1,0 +1,52 @@
+{
+  "name": "apexmaps-skill",
+  "version": "1.0.0",
+  "description": "AI coding skill for ApexMaps: structured reference docs that help AI assistants (Claude, Cursor, Copilot, etc.) generate correct ApexMaps geographic-visualization code.",
+  "keywords": [
+    "apexmaps",
+    "maps",
+    "choropleth",
+    "geojson",
+    "topojson",
+    "geographic",
+    "data-visualization",
+    "ai",
+    "skill",
+    "claude",
+    "cursor",
+    "copilot",
+    "documentation",
+    "reference"
+  ],
+  "author": "ApexCharts <info@apexcharts.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/apexcharts/apexmaps-skill#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apexcharts/apexmaps-skill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/apexcharts/apexmaps-skill/issues"
+  },
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./SKILL.md": "./SKILL.md",
+    "./references/*": "./references/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "SKILL.md",
+    "references",
+    "install",
+    ".cursorrules"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

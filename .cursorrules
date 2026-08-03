@@ -1,0 +1,106 @@
+# ApexMaps Rules
+
+You are working with ApexMaps (`apexmaps`), the geographic data visualization
+library in the ApexCharts ecosystem: choropleths, bubbles, markers, arcs, and
+routes over a built-in geometry registry.
+
+- Docs: https://apexcharts.com/docs/apexmaps/
+- npm: https://www.npmjs.com/package/apexmaps
+- GitHub: https://github.com/apexcharts/apexmaps
+
+## Framework wrapper detection
+
+Check `package.json` before generating code:
+
+- React: use `react-apexmaps` (`<ApexMaps options={...} series={...} onFeatureClick={...} />`)
+- Vue 3: use `vue-apexmaps` (`<ApexMaps :options="..." :series="..." @feature-click="..." />`)
+- Angular: use `ngx-apexmaps` (`<apx-map [options]="..." [series]="..." (featureClick)="..." />`)
+- Otherwise: core API, `new ApexMaps(element, options)`
+
+## Critical rules
+
+1. `const map = new ApexMaps(el, options)` then `await map.render()`. render() is
+   async (geometry packs load lazily). No CSS import is required (styles are
+   injected automatically; importing `apexmaps/apexmaps.css` is harmless).
+2. Geometry comes from the registry: `geo: { map: 'world/countries' }`. Pack ids
+   and aliases: `'world'`, `'us'` (states), `'us/counties'`, `'eu/nuts0'..'nuts3'`,
+   `'jp/prefectures'`, `'fr/departments'`, and admin-1 for 15 countries. Only use
+   a URL or inline GeoJSON/TopoJSON for geography the registry lacks.
+3. Coordinates are ALWAYS `[lon, lat]`, longitude first (GeoJSON order).
+4. `series` is a discriminated union; `type` is one of `choropleth` (default),
+   `bubble`, `marker`, `arc`, `line`.
+5. Join data with `joinBy`: `'field'`, `['geoField', 'dataField']`, or
+   `{ geo, data }`. Omitted = auto-detected. Recommended keys: `us` joins on
+   postal abbreviations (`'CA'`), `us/counties` on 5-digit FIPS strings,
+   `world/countries` on `iso_a3`, admin-1 packs on ISO 3166-2 (`'JP-13'`),
+   NUTS packs on `nuts_id`.
+6. Use `null`, never `undefined`, for missing values; values are numbers.
+7. Licensed features (work without a key, with a watermark): arc and line
+   series, pattern/image fills, marker clustering, drilldown, linked selection,
+   annotations, story context, self-registered projections.
+   `ApexMaps.setLicense('APEX-...')` removes the watermark.
+8. Defaults are publishable: do not add projection/palette/legend/tooltip
+   options unless asked. Packs bring their own defaults (`us` uses `albersUsa`).
+
+## Series data formats
+
+| Type | Datum |
+|---|---|
+| choropleth | `{ <joinKey>: 'FRA', value: 7.3 }` rows, joined by key |
+| bubble | `{ lon, lat, value, name? }` (`lng` accepted), or joinBy to centroids; sqrt sizing by default |
+| marker | `{ lon, lat, name?, category?, shape?, color?, size? }`; shapes: circle, square, diamond, triangle, star, cross, pin; `cluster: {...}` is an option, never a series type |
+| arc | `{ from, to, value?, name? }`; from/to REQUIRED, each `[lon, lat]` or a geometry key; `geodesic: true` default; `flow: true` animates direction |
+| line | `{ path: [[lon,lat], ...], name? }` (`coordinates` synonym) |
+
+```js
+const map = new ApexMaps(document.querySelector('#map'), {
+  geo: { map: 'world/countries' },
+  series: [{
+    name: 'Unemployment rate',
+    joinBy: ['iso_a3', 'code'],
+    data: [{ code: 'FRA', value: 7.3 }, { code: 'DEU', value: 5.7 }],
+  }],
+})
+await map.render()
+```
+
+## Top-level options
+
+`chart`, `geo` (map, projection, view, graticule, sphere), `series`, `legend`,
+`tooltip`, `dataLabels`, `states`, `theme` (`{ mode: 'light'|'dark'|'auto', palette }`),
+`interaction` (zoom/pan/rotate/selection/nearest), `a11y`, `annotations` (licensed),
+`link` (licensed), `debug`, `responsive`.
+
+## Lifecycle and API
+
+- Update data: `map.updateSeries(next)` (tweens; do NOT destroy + recreate).
+- Update anything else: `await map.updateOptions(partial)`.
+- Events: `map.on('featureClick', ({ key, name, value, datum }) => {...})`;
+  also `featureHover`, `markClick`, `drilldown`, `selectionChange`, `zoom`,
+  `rendered`, `rotate`, ...
+- Camera: `map.camera.flyTo({ center: [lon, lat], zoom })`, `easeTo`, `jumpTo`,
+  `fitBounds`; instance: `frameFeature(key)`, `resetView()`, `zoomIn/zoomOut`,
+  `rotateTo`.
+- Drilldown: configure on the choropleth series; navigate with `drillTo(key)` /
+  `drillUp()`.
+- Selection: `toggleSelection(key)`, `setSelection(keys)`, `clearSelection()`.
+- Export: `exportPNG()`, `exportSVG()`, `getSvgString()`, `dataURI()`.
+- Join debugging: `map.diagnoseJoin()` or `debug: { joinDiagnostics: true }`.
+- Statics: `setLicense`, `registerMap`, `registerProjection`, `registerPalette`,
+  `setGeoSource`, `listMaps()`, `catalogue()`, `mapMeta(id)`, `listProjections()`,
+  `listPalettes()`.
+- Teardown: `map.destroy()` (instance is not reusable).
+
+## Pitfalls
+
+- `[48.85, 2.35]` for Paris is WRONG (that is [lat, lon]); write `[2.35, 48.85]`.
+- Do not host GeoJSON for standard maps; name a registry pack.
+- Choropleth of raw counts mostly redraws population; use `normalizeBy: 'population'`
+  or precompute rates.
+- `{ value: undefined }` is wrong; use `{ value: null }` for no data.
+- `type: 'cluster'` does not exist; clustering is `cluster: {...}` on a marker series.
+- `curvature` on arcs is decorative and abandons the great-circle path.
+- `selection.modifier: 'none'` requires `pan.enabled: false`.
+- scale `type: 'threshold'` requires explicit `breaks`.
+- Projections beyond the 20 built-in names need `ApexMaps.registerProjection()`
+  first; palettes beyond the 17 built-ins need `ApexMaps.registerPalette()`.
