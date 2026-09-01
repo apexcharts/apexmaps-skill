@@ -1,8 +1,8 @@
 # Geometry and Projections: Registry, Custom Maps, Camera
 
-## The built-in registry: 26 packs
+## The built-in registry: 26 boundary packs, 7 hex layouts
 
-Name a pack in `geo.map` and the geometry is fetched lazily: nothing loads until a pack is used, and one pack is one HTTP request no matter how many aliases or maps on the page ask for it. The dataset ships as a separate package (`apexmaps-geo`), versioned independently of the library, fetched by default from `https://cdn.jsdelivr.net/npm/apexmaps-geo@1/` (`apexmaps-geo` is published, so the default source works out of the box). For offline or self-hosted setups, `npm install apexmaps-geo` and point `ApexMaps.setGeoSource()` at a loader function or your own URL.
+Name a pack in `geo.map` and the geometry is fetched lazily: nothing loads until a pack is used, and one pack is one HTTP request no matter how many aliases or maps on the page ask for it. The dataset ships as a separate package (`apexmaps-geo`), versioned independently of the library, fetched by default from `https://cdn.jsdelivr.net/npm/apexmaps-geo@1/`. That URL is pinned to the major version, so it serves the current 1.x and a caller on the default needs no configuration for either the boundary packs or the hex layouts. For offline or self-hosted setups, `npm install apexmaps-geo` and point `ApexMaps.setGeoSource()` at a loader function or your own URL; **the seven hex layout files are new in `apexmaps-geo@1.1.0`**, so a self-hosted copy from an earlier release has to be refreshed before `layout: 'hex'` resolves.
 
 | Canonical id | Aliases | `keyField` | One feature is | Features |
 |---|---|---|---|---|
@@ -71,7 +71,77 @@ ApexMaps.mapMeta('us')     // source, license, vintage, boundaries, keyField, le
                            // projection, bounds, note; alias entries carry aliasOf
 ```
 
+`listMaps()` includes the hex layout ids and their aliases; `catalogue()` is boundary packs only. A layout's `mapMeta` carries three extra fields that say it is a diagram rather than a place: `labelField` (the key), `fixed: true`, and `layout: { grid, of, unplaced }`.
+
 `mapMeta(id).boundaries` records whose boundary view a pack carries (Natural Earth de facto, US Census legal, Eurostat NUTS 2021). The software licence does not cover the data; all three sources are permissively licensed.
+
+## Hex tile layouts (licensed)
+
+A layout draws the region set as a grid of equal cells instead of its real boundaries: a hex tile map, honeycomb, or tilegram. Every region becomes one identical hexagon, so the smallest unit is as legible as the largest and land area stops deciding how loud a value looks.
+
+```js
+geo: { map: 'us', layout: 'hex' }     // one hexagon per state
+geo: { map: 'us/states@hex' }         // the same layout, named directly
+```
+
+It is a cartogram, not geography. Reach for it when the story is about people, votes or money and land area is actively misleading, or when every unit has to be legible including the ones too small to see. The cost is that a reader who does not already know the country cannot navigate it, so it is a poor default and a strong deliberate choice.
+
+| Layout id | Aliases | Layout of | `keyField` | Cells |
+|---|---|---|---|---|
+| `us/states@hex` | `us/hex`, `us/states/hex` | `us/states@10m` | `abbr` | 51 (50 states plus DC) |
+| `au/admin1@hex` | `au/hex`, `au/states/hex` | `au/admin1@10m` | `iso_3166_2` | 8 |
+| `ca/admin1@hex` | `ca/hex`, `ca/provinces/hex` | `ca/admin1@10m` | `iso_3166_2` | 13 |
+| `de/admin1@hex` | `de/hex`, `de/states/hex` | `de/admin1@10m` | `iso_3166_2` | 16 |
+| `br/admin1@hex` | `br/hex`, `br/states/hex` | `br/admin1@10m` | `iso_3166_2` | 27 |
+| `jp/admin1@hex` | `jp/hex`, `jp/prefectures/hex` | `jp/admin1@10m` | `iso_3166_2` | 47 |
+| `eu/nuts0@hex` | `eu/hex`, `eu/countries/hex` | `eu/nuts0@20m` | `nuts_id` | 37 |
+
+- **The join does not change.** Cells carry the same key the boundary pack carries, so one dataset, one `joinBy`, and one scale work against either representation.
+- `layout: 'hex'` resolves through aliases, so `map: 'us'` and `map: 'us/states@10m'` both find `us/states@hex`. Only `'hex'` is accepted: square grids exist in the generator and are reachable through `registerLayout` with `grid: 'square'`, but no built-in square layout ships.
+- **A map with no layout throws**, naming the ones that exist, rather than falling back to real boundaries. A silent fallback draws a perfectly good map that is not the one that was asked for, which looks exactly like the option being ignored.
+- A layout is distributed as a table of grid positions, not as baked polygons, so the file is a fraction of the boundary pack it replaces: `us-states-hex.json` is 51 cells of two integers each, about 4 kB against 111 kB for `us-states-10m.json`. It also resolves independently of the boundaries, so this form never downloads geometry it will not draw.
+
+### What a layout changes about the map
+
+Three recommendations travel with the pack, and all three are overridable:
+
+| Behaviour | Why |
+|---|---|
+| `projection: 'identity'` | The coordinates are a flat grid, so projecting them would be meaningless. |
+| Zoom and pan default **off** (`fixed: true`) | A diagram has no detail that sharpens on zoom and nothing off-screen to pan to, so both gestures go back to the page. Set `interaction: { zoom: { enabled: true } }` explicitly to take them back. |
+| Data labels default to the **key**, not the name | "Rhode Island" does not fit a cell sized for Rhode Island, which is also why layout keys are the postal abbreviation. Data labels are still off until you turn them on: `dataLabels: { enabled: true, minFeatureArea: 0, collision: 'none' }` is the setting that labels every cell. |
+
+Layouts are a subset by design, and say so. `us/states@hex` places 51 of the boundary pack's 56 features: the five inhabited territories (`AS`, `GU`, `MP`, `PR`, `VI`) are unplaced because no published one-hex-per-unit layout includes them, and `au/admin1@hex` leaves out three external-territory codes nobody reports state-level data for. A dev warning names them on render, because rows keyed to an unplaced region are dropped by the join like any other unmatched key and would otherwise just fail to appear.
+
+### The morph: geography and back
+
+Turning the layout on or off through `updateOptions` **morphs** each region from its real boundary to its cell rather than swapping the two pictures:
+
+```js
+await map.updateOptions({ geo: { map: 'us', layout: 'hex' } })   // states walk to their cells
+await map.updateOptions({ geo: { map: 'us', layout: null } })    // and back
+```
+
+- It runs whenever a map change lands on two representations of the **same region set** (a layout and the boundary pack it is a layout of). Changing `map` to unrelated geography shares no keys, so that stays a swap.
+- The point of it is legibility, not decoration: the hardest thing about reading a cartogram is knowing which cell is which region, and watching Texas walk to its cell is how a reader keeps the map they already knew.
+- It runs off `chart.animations`, so `enabled: false`, `prefers-reduced-motion`, and `speed: 'instant'` all turn it off with everything else. It is the one renderer doing vertex work every frame, so it stands down above the motion budget instead of degrading, and the map swaps.
+- Labels and annotations fade out for the flight and back at the end: they are anchored to the geometry that has already arrived, and a cell's label text differs from a region's.
+
+### `registerLayout`: your own table
+
+```js
+ApexMaps.registerLayout('nl/provinces@hex', {
+  keyField: 'code',                                   // must match the boundary pack's key
+  cells: { 'NL-GR': [4, 0], 'NL-FR': [3, 1], 'NL-DR': [4, 1] },   // key -> [col, row]
+  names: { 'NL-GR': 'Groningen' },                    // so a tooltip has something to say
+})
+
+// geo: { map: 'nl/provinces@hex' }
+```
+
+`cells` is `key -> [col, row]`, row 0 north and col 0 west. Optional pack fields: `grid` (`'hex'` default, `'square'`), `orientation` (`'pointy'` default, `'flat'`), `offset` (`'odd-r'`/`'even-r'` for pointy, `'odd-q'`/`'even-q'` for flat; mismatching orientation and offset throws rather than being reinterpreted), `gap` (default `0.06`, a property of the pack so two maps sharing a layout cannot disagree), `names`, `unplaced`, `compromises`, and the usual provenance fields. Two regions on one cell throws, because one of them would be invisible.
+
+Curating the table is the whole job: there is no canonical layout for any country, and a good one is a judgement about which real adjacencies matter most. Registering is free; **rendering** a grid layout is licensed, your own table included, because the gate is on drawing a region set as a grid rather than on whose table it is.
 
 ## Geometry beyond the registry
 
@@ -107,6 +177,8 @@ Point the catalogue at your own copy of the dataset: a base URL, or a loader fun
 ApexMaps.setGeoSource('https://cdn.example.com/apexmaps-geo/')
 ApexMaps.setGeoSource((file) => import(`apexmaps-geo/${file}`).then((m) => m.default)) // no network
 ```
+
+A self-hosted copy needs refreshing to `apexmaps-geo@1.1.0` before hex layouts resolve: that release adds seven files (`us-states-hex.json`, `au-admin1-hex.json`, `ca-admin1-hex.json`, `de-admin1-hex.json`, `br-admin1-hex.json`, `jp-admin1-hex.json`, `eu-nuts0-hex.json`) to the 26 boundary packs. Callers on the default source get them with no configuration, because that URL is pinned to `apexmaps-geo@1`.
 
 ## Projections
 

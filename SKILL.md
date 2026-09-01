@@ -4,21 +4,22 @@ description: >
   AI skill for building ApexMaps geographic data visualizations. Use whenever
   the user asks to create, configure, render, update, or troubleshoot a
   choropleth map, bubble / proportional-symbol map, marker or point map, flow
-  map (arcs, great-circle routes, origin-destination), route/line map, or any
-  map built with `apexmaps`. Covers the five series types (choropleth, bubble,
-  marker, arc, line), the built-in geometry registry (world countries, US
-  states and counties, EU NUTS 0-3, admin-1 for 15 countries), data joins via
-  `joinBy`, projections, classed and continuous scales, palettes, drilldown,
-  marker clustering, the camera API, annotations, theming, and framework
-  integration (React / Vue / Angular). In React / Vue / Angular projects,
+  map (arcs, great-circle routes, origin-destination), route/line map, hexbin
+  density map, or hex tile map (honeycomb, tilegram, cartogram) built with
+  `apexmaps`. Covers the six series types (choropleth, bubble, marker, hexbin,
+  arc, line), the built-in geometry registry (world countries, US states and
+  counties, EU NUTS 0-3, admin-1 for 15 countries) and its seven hex tile
+  layouts, data joins via `joinBy`, projections, classed and continuous
+  scales, palettes, drilldown, marker clustering, the camera API, annotations,
+  theming, and framework integration (React / Vue / Angular). In React / Vue / Angular projects,
   prefer the framework wrapper packages (`react-apexmaps`, `vue-apexmaps`,
   `ngx-apexmaps`) over the core API.
 metadata:
   author: ApexCharts
-  version: "1.0.0"
-  library_version: "0.3.0"
+  version: "1.1.0"
+  library_version: "0.4.0"
   category: data-visualization
-  tags: [maps, choropleth, geojson, topojson, geographic, charts, apexmaps]
+  tags: [maps, choropleth, hexbin, tilegram, geojson, topojson, geographic, charts, apexmaps]
   docs: https://apexcharts.com/docs/apexmaps/
   npm: apexmaps
   github: https://github.com/apexcharts/apexmaps
@@ -28,15 +29,17 @@ metadata:
 
 ApexMaps is a standalone geographic visualization library in the ApexCharts
 ecosystem (it does NOT require the `apexcharts` package or a global). It draws
-choropleths, proportional-symbol bubbles, markers, great-circle arcs, and
-routes over a built-in geometry registry, so there is no GeoJSON to find, host,
-or parse for the common maps.
+choropleths, proportional-symbol bubbles, markers, binned point density,
+great-circle arcs, and routes over a built-in geometry registry, so there is no
+GeoJSON to find, host, or parse for the common maps. It can also draw a region
+set as a hex tile map instead of its real boundaries.
 
-> **Status: pre-alpha (0.3.0).** The engine, all five series types,
-> projections, joins, scales, fills, legend, tooltip, labels, annotations,
-> camera, geometry registry, drilldown, clustering, selection, and the
-> accessibility layer work and are tested. The story engine and map tiles are
-> not built yet. Expect option-level changes between minor versions.
+> **Status: pre-alpha (0.4.0).** The engine, all six series types, hex tile
+> layouts and the morph between them, projections, joins, scales, fills,
+> legend, tooltip, labels, annotations, camera, geometry registry, drilldown,
+> clustering, selection, and the accessibility layer work and are tested. The
+> story engine and map tiles are not built yet. Expect option-level changes
+> between minor versions.
 
 ## Framework wrapper detection: check `package.json` first
 
@@ -77,10 +80,12 @@ See `references/framework-wrappers.md`.
    `scale.nullColor` and stay out of the scale.
 8. **Values must be numbers** (or `null`). The default value field is `value`;
    override with `valueField` or per-series accessors.
-9. **Licensed features work without a key, with a watermark**: `arc` and
-   `line` series, pattern/image fills, marker clustering, drilldown, linked
-   selection (`link`), annotations, story context, and self-registered
-   projections. Everything else renders clean without a key.
+9. **Licensed features work without a key, with a watermark**: `arc`, `line`
+   and `hexbin` series, grid layouts (`geo.layout: 'hex'`, an `@hex` pack id,
+   or your own `registerLayout` table), pattern/image fills, marker
+   clustering, drilldown, linked selection (`link`), annotations, story
+   context, and self-registered projections. Everything else renders clean
+   without a key.
    `ApexMaps.setLicense('APEX-...')` before rendering removes the watermark;
    one Apex key covers every product, but each library needs its own
    `setLicense` call.
@@ -101,6 +106,7 @@ bubble).
 | `marker` | `{ lon, lat, name?, value?, category?, shape?, color?, size? }` | coordinates, or `joinBy` to centroids |
 | `arc` | `{ from, to, value?, name? }`, `from`/`to` REQUIRED, each `[lon, lat]` or a geometry key like `'JFK'`/`'FRA'` | endpoints |
 | `line` | `{ path: [[lon,lat], ...], name? }` (`coordinates` accepted for `path`) | the vertex sequence itself |
+| `hexbin` | `{ lon, lat, value?, name? }` (`lng` accepted; `coordinates: [lon, lat]` accepted) | coordinates only, binned onto a lattice. There is NO `joinBy` |
 
 ```js
 const map = new ApexMaps(document.querySelector('#map'), {
@@ -140,6 +146,14 @@ Key per-type notes:
   geometry keys (`joinBy` controls the field).
 - **line**: caller supplies the whole path (GPS trace, shipping lane); same
   `width`, `colorScale`, `endpoints`, `flow` options as arc.
+- **hexbin** (licensed): the right mark when there are more points than pixels.
+  Bins points onto a hexagonal lattice and colours each cell by an
+  `aggregate` (`'count'` default, plus `'sum' | 'mean' | 'min' | 'max'`).
+  `radius` is in SCREEN pixels (default 14), so the lattice refines as the
+  reader zooms instead of magnifying, and the colour domain follows the bins
+  unless `scale.domain` or `scale.breaks` pins it. `minCount` drops thin
+  cells, `gap` (default 0) shrinks each cell, `orientation` is `'pointy'`
+  (default) or `'flat'`. Points only: a hexbin has no `joinBy`.
 
 Common to every series: `name`, `visible`, `opacity`, `stroke`, `labels`,
 `animation` (`grow` / `draw` / `fade`), `valueField`.
@@ -151,7 +165,7 @@ Full details: `references/data-format.md`.
 | Key | Purpose |
 |---|---|
 | `chart` | width, height, default series `type`, background, fontFamily, `context: 'story' \| 'dashboard'`, `animations`, `events` |
-| `geo` | `map` (registry id / URL / GeoJSON / TopoJSON), `object`, `keyField`, `nameField`, `projection`, `view: { fit, padding }`, `graticule`, `sphere`, `fill`, `repairWinding` |
+| `geo` | `map` (registry id / URL / GeoJSON / TopoJSON), `layout` (`'hex'` draws the region set as a hex tile map; licensed), `object`, `keyField`, `nameField`, `projection`, `view: { fit, padding }`, `graticule`, `sphere`, `fill`, `repairWinding` |
 | `series` | array of the union above |
 | `legend` | `position` (`bottom` default), `style: 'auto' \| 'classes' \| 'gradient'`, `interactive` (click to mute a class), `marker` (hover arrow on gradient bars), formatters |
 | `tooltip` | `formatter(context)` returning HTML, `valueFormatter`, `followCursor` |
@@ -205,6 +219,7 @@ Instance methods and getters:
 | `destroy()` | teardown |
 
 Statics: `ApexMaps.setLicense(key)`, `registerMap(id, source, meta?)`,
+`registerLayout(id, pack, meta?)` (your own grid layout table),
 `registerProjection(name, factory)`, `registerPalette(name, palette)`,
 `setGeoSource(urlOrFetcher)` (self-host geometry), `listMaps()`,
 `catalogue()`, `mapMeta(id)`, `listProjections()`, `listPalettes()`,
@@ -217,8 +232,9 @@ Events (`ApexMapsEventMap`): `rendered`, `updated`, `resized`,
 
 ## 6. Geometry Registry
 
-26 built-in packs, fetched lazily (one request per pack). Canonical id is
-`region/level@detail`; the detail-free form resolves to the lightest pack.
+26 built-in boundary packs plus 7 hex tile layouts, fetched lazily (one
+request per pack). Canonical id is `region/level@detail`; the detail-free form
+resolves to the lightest pack.
 
 | Id (alias) | Join key (`keyField`) | Features |
 |---|---|---|
@@ -236,8 +252,37 @@ for France and Norway; the packs fix that), a recommended join key, per-pack
 default projections (`albersUsa` for US packs, ETRS89-LAEA for NUTS, custom
 conics for Canada and Russia), and provenance/attribution metadata.
 
-Full pack table, custom geometry, projections, and the camera:
-`references/geo-and-projections.md`.
+### Hex tile layouts (licensed)
+
+`geo.layout: 'hex'` draws the region set as one equal hexagon per region
+instead of its real boundaries: a honeycomb, tilegram, or hex cartogram.
+
+```js
+geo: { map: 'us', layout: 'hex' }   // one hexagon per state
+geo: { map: 'us/states@hex' }       // the same layout, named directly
+```
+
+- Seven ship: `us/states@hex`, `au/admin1@hex`, `ca/admin1@hex`,
+  `de/admin1@hex`, `br/admin1@hex`, `jp/admin1@hex`, `eu/nuts0@hex` (aliases
+  `us/hex`, `au/hex`, ... also resolve). A `layout: 'hex'` on a map with no
+  layout throws and names the ones that exist; it never falls back to real
+  boundaries.
+- **The join does not change.** Cells carry the same key the boundary pack
+  carries (`abbr` for US states, `iso_3166_2` for admin-1, `nuts_id` for
+  NUTS), so one dataset works against either representation.
+- A layout is a diagram, not geography, and says so about itself: it is drawn
+  with the `identity` projection, zoom and pan default OFF, and data labels
+  default to the KEY (`CA`, not `California`, which does not fit a cell).
+- Toggling the layout through `updateOptions` **morphs** each region between
+  its boundary and its cell, which is how a reader learns which cell is which.
+- Layouts are a subset by design: `us/states@hex` places 51 of the pack's 56
+  features (the five territories are unplaced) and reports that as a dev
+  warning. Rows keyed to an unplaced region do not appear.
+- Licensed however you reach it: `geo.layout`, an `@hex` id, or your own
+  `ApexMaps.registerLayout(id, { keyField, cells })` table.
+
+Full pack table, the layout table, custom geometry, projections, and the
+camera: `references/geo-and-projections.md`.
 
 ## 7. Pitfalls: Wrong vs Correct
 
@@ -278,6 +323,18 @@ Full pack table, custom geometry, projections, and the camera:
 10. **Re-instantiating to change data**
     - Wrong: `destroy()` + `new ApexMaps(...)` per update
     - Correct: `map.updateSeries(next)`; it tweens and keeps the camera.
+11. **Hexbinning regions instead of points**
+    - Wrong: `{ type: 'hexbin', joinBy: ['abbr', 'code'], data: stateRows }`.
+      A hexbin has no `joinBy`, and binning region centroids bins the
+      geometry: the answer would be decided by how the regions were drawn.
+    - Correct: hexbin takes `{ lon, lat }` points. Rows keyed to regions are a
+      choropleth.
+12. **Expecting `layout: 'hex'` on any map**
+    - Wrong: `geo: { map: 'in', layout: 'hex' }` and expecting real boundaries
+      when no layout exists. It throws, on purpose: a silent fallback looks
+      exactly like the option being ignored.
+    - Correct: use one of the seven, or register your own table with
+      `ApexMaps.registerLayout()`.
 
 ## 8. Theming
 
@@ -297,7 +354,7 @@ Details: `references/styling-and-interaction.md`.
 
 | Topic | Reference File |
 |---|---|
-| Datum shapes per series type, joins (`joinBy`, `fuzzyJoin`, diagnostics), `normalizeBy`, FIPS repair | `references/data-format.md` |
-| Registry packs and aliases, custom GeoJSON/TopoJSON, `registerMap`, `setGeoSource`, projections and spec objects, camera API | `references/geo-and-projections.md` |
-| Scales, palettes, size scales, legends, tooltips, data labels, pattern/image fills, states, selection, linked maps, drilldown, zoom controls, a11y, theming, responsive | `references/styling-and-interaction.md` |
+| Datum shapes per series type, joins (`joinBy`, `fuzzyJoin`, diagnostics), `normalizeBy`, FIPS repair, hexbin binning and aggregates | `references/data-format.md` |
+| Registry packs and aliases, hex tile layouts and the morph, `registerMap`, `registerLayout`, custom GeoJSON/TopoJSON, `setGeoSource`, projections and spec objects, camera API | `references/geo-and-projections.md` |
+| Scales, palettes, size scales, legends, tooltips, data labels, pattern/image fills, states, selection, linked maps, drilldown, zoom controls, a11y, theming, responsive, licensing | `references/styling-and-interaction.md` |
 | React / Vue / Angular wrappers | `references/framework-wrappers.md` |

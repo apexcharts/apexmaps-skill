@@ -1,6 +1,6 @@
 {
   "name": "apexmaps-skill",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI coding skill for ApexMaps: structured reference docs that help AI assistants (Claude, Cursor, Copilot, etc.) generate correct ApexMaps geographic-visualization code.",
   "keywords": [
     "apexmaps",

@@ -1,6 +1,6 @@
 # Styling and Interaction: Scales, Legends, Selection, Drilldown, Theming
 
-## Scales (choropleth `scale`, bubble/arc/line `colorScale`)
+## Scales (choropleth and hexbin `scale`, bubble/arc/line `colorScale`)
 
 `ScaleOptions` fields:
 
@@ -193,7 +193,7 @@ Ways back up: the breadcrumb (real, keyboard-reachable buttons), Escape, or `dri
 
 | Option | Default | Notes |
 |---|---|---|
-| `zoom.enabled` | `true` | |
+| `zoom.enabled` | `true` | A pack that declares itself `fixed`, which every hex tile layout does, defaults `zoom.enabled` and `pan.enabled` to `false` instead: a diagram has nothing to zoom into and nothing off-screen to pan to, so the wheel and the drag go back to the page. Asking for them explicitly still wins. |
 | `zoom.min` / `max` / `wheel` / `doubleClick` | `0.8` / `4096` / `true` / `true` | |
 | `zoom.step` | `1.6` | Scale factor per step: buttons, keyboard, double-click. |
 | `zoom.controls` | `{ show: true, position: 'top-right', reset: true }` | `false` removes them. |
@@ -211,9 +211,10 @@ Never license-gated, in any tier. Defaults: `enabled: true`, `description: 'auto
 
 - `theme: { mode: 'light' | 'dark' | 'auto' }`. Default `'light'`. `'auto'` follows `prefers-color-scheme`; dark is a class (`apexmaps--dark`) on the container, so a dashboard can force it independently of the OS. Dark mode paints its own background; hand it back with `--apexmaps-bg: transparent`. The data palette is unchanged: what changes is chrome, no-data color, and text.
 - `theme.palette` names the default scale palette for series that omit one.
+- **Family tokens (0.4.0)**: the chrome roles that mean the same thing across the ApexCharts products fall back to the shared `--apx-*` family tokens, so a page can state its brand once on `:root` and the map follows along with the charts beside it. `--apexmaps-fg` falls back to `--apx-fore`, `--apexmaps-surface` to `--apx-surface`, `--apexmaps-border` to `--apx-grid`, `--apexmaps-focus` to `--apx-accent`. Precedence is `--apexmaps-*` set by the host, then the `--apx-*` token, then the built-in default. Two deliberate exceptions: `--apexmaps-bg` stays transparent in light mode so a tinted host card shows through, and the dark palette takes no family tokens at all (one set of `--apx-*` values describes one appearance, and a light brand surface applied to the dark palette is how you get white text on white). Override `--apexmaps-*` to theme dark mode.
 - CSS custom properties on the container restyle all chrome with no options: `--apexmaps-bg`, `--apexmaps-fg`, `--apexmaps-fg-muted`, `--apexmaps-surface`, `--apexmaps-border`, `--apexmaps-focus`, `--apexmaps-halo` (label halo), `--apexmaps-font-size` (`12px`), `--apexmaps-radius` (`6px`), `--apexmaps-shadow`, `--apexmaps-legend-bar` (vertical gradient bar height, `140px`), `--apexmaps-legend-width` (`180px`), `--apexmaps-muted-opacity` (`0.25`), `--apexmaps-anim` / `--apexmaps-anim-geom` (transition durations, written by the engine from `chart.animations`), `--apexmaps-zoom-idle-opacity` (`0.7`), and `--apexmaps-flow-duration` / `--apexmaps-flow-delay` / `--apexmaps-flow-travel` (flow bead animation, written by the renderer).
 - `chart.context`: `'dashboard'` (default) or `'story'`. Story animates entrances (turns `animations.entrance` on) and is licensed; dashboard does not, because a dashboard reader wants the number now.
-- `chart.animations`: `{ enabled: true, speed: 'normal', entrance: false }`. `speed` is `'slow'` (700ms), `'normal'` (350ms), `'fast'` (180ms), `'instant'` (0), or a number in ms. Data updates (`updateSeries`, palette changes, legend toggles) tween fills, radii and stroke widths; camera-driven geometry never animates. Past a few thousand marks the engine degrades on its own: geometry transitions stop first, then everything. `prefers-reduced-motion` disables all of it; flow beads stay in place and stop traveling; drilldown becomes a plain swap. Nothing to configure.
+- `chart.animations`: `{ enabled: true, speed: 'normal', entrance: false }`. `speed` is `'slow'` (700ms), `'normal'` (350ms), `'fast'` (180ms), `'instant'` (0), or a number in ms. Data updates (`updateSeries`, palette changes, legend toggles) tween fills, radii and stroke widths; camera-driven geometry never animates. Past a few thousand marks the engine degrades on its own: geometry transitions stop first, then everything. `prefers-reduced-motion` disables all of it; flow beads stay in place and stop traveling; drilldown becomes a plain swap. Nothing to configure. The hex layout morph runs at twice the configured speed (it has to be followed, not just noticed) and is the one transition with no cheap version to fall back to, so past the full motion budget it swaps rather than degrading.
 
 ## Responsive
 
@@ -234,12 +235,16 @@ A map that answers a question is free; a map that becomes an application is lice
 |---|---|
 | `choropleth`, `bubble`, `marker` series, automatic basemap | Point clustering (`cluster`) |
 | All 16 built-in projections, with spec objects | Self-registered projections (`registerProjection`) |
-| Geometry registry, all 26 packs | Drilldown and the breadcrumb |
+| Geometry registry, all 26 boundary packs | Drilldown and the breadcrumb |
 | Tooltips, legends, labels, data labels, states, themes | Editorial annotations (`annotations`) |
 | Zoom, pan, pinch, hover, click, box selection, camera API | `arc` and `line` route series |
 | Joins, `fuzzyJoin`, join diagnostics | Linked selection (`link: { group }`) |
 | Scales, palettes, size legends, responsive rules | Story mode (`chart: { context: 'story' }`) |
 | Flat fills, PNG and SVG export, the accessibility layer | Pattern fills and image fills (`fill`) |
+| Registering geometry, layouts, projections and palettes | `hexbin` series: binned point density |
+| `chart.context: 'dashboard'`, the default | Hex tile layouts, however you reach them: `geo.layout: 'hex'`, an `@hex` pack id, or your own `registerLayout` table |
+
+The line the two columns follow: a map answering a question is free, and a map becoming an application is licensed. Summarising points into an aggregate the reader cannot get back to the originals from is on the licensed side whether it is done by distance (`cluster`) or by lattice (`hexbin`), and so is drawing the geography as something other than itself (grid layouts). Registering something costs nothing in either case; rendering it is what is gated, which is why a layout table you authored yourself is gated the same as a built-in one. The layout morph has no gate of its own, because it only ever runs on a layout toggle.
 
 Licensed features work without a key, in full, **with a watermark on the map**, so they can be evaluated in your own app. No metering, no seat counting, no network calls.
 

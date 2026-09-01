@@ -16,13 +16,14 @@ AI coding skill for building [ApexMaps](https://apexcharts.com/docs/apexmaps/) g
 
 ## What This Does
 
-AI models routinely get map code wrong: swapping `[lon, lat]` into `[lat, lon]`, hunting for GeoJSON files the geometry registry already ships, joining US states on full names when the pack key is the postal code, coloring choropleths by raw counts instead of rates, or treating clustering as a separate series type. This skill ships structured reference files so the assistant generates correct ApexMaps code on the first try.
+AI models routinely get map code wrong: swapping `[lon, lat]` into `[lat, lon]`, hunting for GeoJSON files the geometry registry already ships, joining US states on full names when the pack key is the postal code, coloring choropleths by raw counts instead of rates, treating clustering as a separate series type, or drawing 20,000 markers where a hexbin is the mark that answers the question. This skill ships structured reference files so the assistant generates correct ApexMaps code on the first try.
 
 ### Coverage
 
-- **The five series types**: choropleth (default), bubble, marker, arc, line, and each one's datum shape
+- **The six series types**: choropleth (default), bubble, marker, hexbin, arc, line, and each one's datum shape
 - **Data joins**: `joinBy` forms, key auto-detection, `fuzzyJoin`, the join diagnostic, FIPS repair
-- **The geometry registry**: 26 built-in packs (world, US states/counties, EU NUTS 0-3, admin-1 for 15 countries), aliases, recommended join keys
+- **The geometry registry**: 26 built-in boundary packs (world, US states/counties, EU NUTS 0-3, admin-1 for 15 countries), aliases, recommended join keys
+- **Hex tile layouts**: the seven built-in tilegrams (`geo.layout: 'hex'`), what a layout changes about the map, the morph between boundaries and cells, `registerLayout`
 - **Projections**: 16 built-ins (20 accepted names with aliases), spec objects, per-pack defaults like `albersUsa`, `registerProjection`
 - **Scales and palettes**: quantile / Jenks / threshold and more, 17 palettes, automatic diverging selection
 - **Interaction**: camera moves (`flyTo`, `fitBounds`), selection and linked maps, drilldown, marker clustering, globe rotation
@@ -77,7 +78,7 @@ const geo = await readFile(referencePath('geo-and-projections.md'), 'utf8');
 ├── .cursorrules                        # Self-contained version for Cursor / Windsurf
 ├── references/
 │   ├── data-format.md                  # datum shapes per series type, joins, normalizeBy
-│   ├── geo-and-projections.md          # registry packs, custom geometry, projections, camera
+│   ├── geo-and-projections.md          # registry packs, hex tile layouts, custom geometry, projections, camera
 │   ├── styling-and-interaction.md      # scales, legends, selection, drilldown, theming, licensing
 │   └── framework-wrappers.md           # React, Vue, Angular
 └── install/

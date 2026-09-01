@@ -9,14 +9,15 @@ type Series =
   | ChoroplethSeriesOptions   // type?: 'choropleth'  (the default)
   | BubbleSeriesOptions       // type: 'bubble'
   | MarkerSeriesOptions       // type: 'marker'
-  | ArcSeriesOptions          // type: 'arc'   (licensed)
-  | LineSeriesOptions         // type: 'line'  (licensed)
+  | HexbinSeriesOptions       // type: 'hexbin' (licensed)
+  | ArcSeriesOptions          // type: 'arc'    (licensed)
+  | LineSeriesOptions         // type: 'line'   (licensed)
 ```
 
 - A series without `type` is a **choropleth**. `chart.type` seeds the default for series that omit it.
 - An unknown `type` does not throw: the series is skipped with a dev warning naming it.
 - Mixing types on one map is normal (bubbles or arcs over a choropleth).
-- `arc` and `line` series and marker clustering are licensed: they work without a key for evaluation, with a watermark.
+- `arc`, `line` and `hexbin` series and marker clustering are licensed: they work without a key for evaluation, with a watermark.
 
 ## Coordinate order
 
@@ -70,7 +71,7 @@ series: [{
 
 When `joinBy` is omitted, both sides are auto-detected and the fields actually used are reported in the diagnostic:
 
-- **Geometry side**: the key the pack already resolved (its `keyField`). Detection prefers codes over names because names are unstable across datasets: `iso_a3`, `iso3`, `adm0_a3`, `iso_a2`, `hc-key` (Highcharts map geometry works unchanged), `GEOID`, `fips`, `STATEFP`, `id`, `code`, `postal`, then `name` variants.
+- **Geometry side**: the key the pack already resolved (its `keyField`). Detection prefers codes over names because names are unstable across datasets: `iso_a3`, `iso3`, `adm0_a3`, `iso_a2`, `hc-key`, `GEOID`, `fips`, `STATEFP`, `id`, `code`, `postal`, then `name` variants.
 - **Data side**, first field present of: `id`, `key`, `code`, `iso`, `iso_a3`, `iso3`, `iso_a2`, `iso2`, `fips`, `geoid`, `hc-key`, `region`, `state`, `country`, `name`; else the first string-valued field.
 
 Recommended pack keys: `world/countries` joins on `iso_a3`, `us/states` on postal abbreviations (`'CA'`), `us/counties` on 5-digit FIPS strings, EU packs on `nuts_id`, admin-1 packs on ISO 3166-2 codes (`'JP-13'`).
@@ -148,6 +149,43 @@ The same report prints to the console automatically in dev mode (localhost or `f
 | `showCount` | `true` | Member count inside the circle |
 | `zoomOnClick` | `true` | Fly to the members' bounds on click (`clusterClick` emits first) |
 
+## Hexbin series (licensed)
+
+```js
+{
+  type: 'hexbin',
+  name: 'Points per cell',
+  data: points,                          // { lon, lat, value? }
+  radius: 12,                            // screen px, centre to vertex
+  gap: 0.05,                             // reads as cells, not one sheet
+  scale: { palette: 'viridis', classes: 6 },
+  stroke: { color: '#ffffff', width: 0.4 },
+}
+```
+
+The right mark when there are more points than pixels. Past the first overlap a pile of markers stops tracking the number, so the reader gets the shape of the data and no way to rank one part of it against another; a cell of fixed area can carry a number. It is also one SVG node per cell instead of three per point.
+
+- Datum: `{ lon?, lat?, lng?, coordinates?, value?, name?, ...extra }`. `lng` is a synonym for `lon`; `coordinates` is a `[lon, lat]` pair, for data that arrived as GeoJSON. A datum with no usable position is dropped and counted in a dev warning.
+- **There is no `joinBy`, deliberately.** A hexbin over region centroids bins the *geometry*: the answer is decided by how the regions were drawn rather than by where anything happened, and it changes if the map does. Points are the input; rows keyed to regions want a choropleth.
+- Not the same thing as a hex tile layout (`geo.layout: 'hex'`), which is also hexagons: a layout is one cell per region and replaces the boundaries, a hexbin has no regions in it and ignores them. See `geo-and-projections.md`.
+
+| Option | Default | Notes |
+|---|---|---|
+| `radius` | `14` | Cell radius, centre to vertex, in **screen** pixels. Screen and not world, so cells stay the size you chose and the lattice refines as the reader zooms. |
+| `orientation` | `'pointy'` | Vertex up, or `'flat'` for a vertex to the side. |
+| `aggregate` | `'count'` | What the colour encodes: `'count' \| 'sum' \| 'mean' \| 'min' \| 'max'`. `'count'` needs no value field at all, which is why it is the default: "where are these things" is the question that brings anyone here. |
+| `scale` | | `ScaleOptions`, exactly as a choropleth's. The domain comes from the bins. |
+| `minCount` | `1` | Bins holding fewer points are not drawn. |
+| `gap` | `0` | Shrink each cell towards its centre, as a fraction of the radius. |
+
+Plus the common fields: `name`, `visible`, `opacity`, `stroke`, `valueField`.
+
+- **The lattice follows the camera.** Bins are rebuilt at quantized zoom levels (the same policy marker clustering uses, shared with it), so a pan never re-bins and a smooth zoom crosses a level a handful of times rather than every frame. Smaller cells hold fewer points, so the class breaks move with the lattice and the legend is redrawn with them. That is the honest reading of a density map; pass `scale.domain` or `scale.breaks` to pin the classes instead, which is what you want when two maps have to be compared.
+- Aggregates other than `'count'` read the series' `valueField` (default `'value'`). Points that carry no finite number are counted in a dev warning and the bin reports on the rest; a bin with no values at all reports `null` and takes `scale.nullColor`.
+- The legend follows the scale exactly as a choropleth's does: classes for a classed scale (click one to mute those cells), a gradient bar for a continuous one. Its title is the series `name`; without one it names the aggregate, and a `count` hexbin is titled "points per cell", because "count" and "mean depth" are different maps and the legend is the only place that says which one this is.
+- **Events**: a cell is a mark, not a feature, so it emits `markHover` / `markClick` (never `featureClick`). The payload's `key` is the cell's lattice coordinates as `"q,r"`, `value` is the aggregate, and `datum` is the **array** of member rows that landed in the cell.
+- Dev-mode advice fires when the mark is the wrong tool for the data: fewer than 50 points, more cells than roughly two thirds the point count (a scatter plot wearing hexagons), or `aggregate: 'mean'` left at `minCount: 1`, where one point can shout as loudly as a hundred.
+
 ## Arc series
 
 ```js
@@ -174,7 +212,7 @@ The same report prints to the console automatically in dev mode (localhost or `f
 |---|---|---|
 | `style` | `'dots'` | `'dash'` marches a dashed highlight instead |
 | `scale` | `'zoom'` | Beads anchor to the ground and spread with zoom; `'screen'` holds size and spacing fixed |
-| `speed` | 90 | Screen px/s at the opening zoom; bounded at twice that under `'zoom'` |
+| `speed` | 90 | Screen px/s, held at every zoom. Since 0.4.0 the pace does not track the camera at all: the cycle is stretched by exactly what the bead period grew by, so zooming changes what the flow looks like, never how fast it reads |
 | `spacing` | 56 | Px between beads at the opening zoom; bounded at six times; a route shorter than the spacing carries at most one bead |
 | `size` | route width | Bead diameter or dash weight, px; bounded at three times |
 | `color` | route colour | |
