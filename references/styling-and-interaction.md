@@ -252,4 +252,4 @@ Licensed features work without a key, in full, **with a watermark on the map**, 
 ApexMaps.setLicense('APEX-xxxxxxxx') // before rendering; applies to every map on the page
 ```
 
-One key covers every Apex product, but each library needs its own call: `ApexMaps.setLicense()` and `ApexCharts.setLicense()` set different copies of the license manager, because each bundles its own. Accessibility is never gated, and the free tier keeps `okabeIto` plus the automatic diverging selection.
+One key covers every Apex product, and the license is page-wide. Each library bundles its own copy of the license manager, but the copies keep the key and their change listeners in one shared slot, so `ApexCharts.setLicense(key)` also licenses ApexMaps, and a call made after a map has rendered clears its watermark straight away. Calling `ApexMaps.setLicense(key)` as well is harmless. ApexCharts' per-chart `chart.license` and `window.Apex.license` never reach a map: only a `setLicense` call sets the shared key. Accessibility is never gated, and the free tier keeps `okabeIto` plus the automatic diverging selection.

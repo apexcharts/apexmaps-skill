@@ -1,6 +1,6 @@
 # Framework Wrappers: React, Vue, Angular
 
-Official wrappers live in the apexmaps repo (`wrappers/react`, `wrappers/vue`, `wrappers/angular`) and are versioned in step with the core (`0.4.0`, peer dependency `apexmaps ^0.4.0`). Each is built for its own framework's change model rather than adapted from the React one, and all are typed against the core package's own types (`ApexMapsOptions`, `Series`, `ApexMapsEventMap`), so there is no second options schema to learn. A Svelte wrapper is planned but does not exist yet: in Svelte, use the core API directly.
+Official wrappers live in the apexmaps repo (`wrappers/react`, `wrappers/vue`, `wrappers/angular`) and are versioned in step with the core (`1.0.0`, peer dependency `apexmaps ^1.0.0`). Keep a wrapper and the core on the same major: a 0.4.x wrapper peers `apexmaps ^0.4.0`, which excludes 1.x. Each is built for its own framework's change model rather than adapted from the React one, and all are typed against the core package's own types (`ApexMapsOptions`, `Series`, `ApexMapsEventMap`), so there is no second options schema to learn. A Svelte wrapper is planned but does not exist yet: in Svelte, use the core API directly.
 
 ## Which package
 

@@ -16,8 +16,8 @@ description: >
   `ngx-apexmaps`) over the core API.
 metadata:
   author: ApexCharts
-  version: "1.1.0"
-  library_version: "0.4.0"
+  version: "1.2.0"
+  library_version: "1.0.0"
   category: data-visualization
   tags: [maps, choropleth, hexbin, tilegram, geojson, topojson, geographic, charts, apexmaps]
   docs: https://apexcharts.com/docs/apexmaps/
@@ -34,12 +34,12 @@ great-circle arcs, and routes over a built-in geometry registry, so there is no
 GeoJSON to find, host, or parse for the common maps. It can also draw a region
 set as a hex tile map instead of its real boundaries.
 
-> **Status: pre-alpha (0.4.0).** The engine, all six series types, hex tile
-> layouts and the morph between them, projections, joins, scales, fills,
-> legend, tooltip, labels, annotations, camera, geometry registry, drilldown,
-> clustering, selection, and the accessibility layer work and are tested. The
-> story engine and map tiles are not built yet. Expect option-level changes
-> between minor versions.
+> **Status: stable since 1.0.0.** The public API follows semantic versioning,
+> so breaking changes wait for a major version. The engine, all six series
+> types, hex tile layouts and the morph between them, projections, joins,
+> scales, fills, legend, tooltip, labels, annotations, camera, geometry
+> registry, drilldown, clustering, selection, and the accessibility layer are
+> shipped and tested. The story engine and map tiles are not built yet.
 
 ## Framework wrapper detection: check `package.json` first
 
@@ -84,11 +84,13 @@ See `references/framework-wrappers.md`.
    and `hexbin` series, grid layouts (`geo.layout: 'hex'`, an `@hex` pack id,
    or your own `registerLayout` table), pattern/image fills, marker
    clustering, drilldown, linked selection (`link`), annotations, story
-   context, and self-registered projections. Everything else renders clean
-   without a key.
-   `ApexMaps.setLicense('APEX-...')` before rendering removes the watermark;
-   one Apex key covers every product, but each library needs its own
-   `setLicense` call.
+   context, and self-registered projections. The license places these in the
+   Premium plan and above. Everything else renders clean without a key and is
+   free under the Community terms.
+   `ApexMaps.setLicense('APEX-...')` before rendering removes the watermark.
+   One Apex key covers every product, and the license is page-wide:
+   `ApexCharts.setLicense(key)` licenses ApexMaps too, and clears the
+   watermark from maps already on screen.
 10. **Defaults are publishable.** Do not pile on options: no projection,
     palette, classification, legend, or tooltip configuration is required.
     Add options only when the user asks for the behavior they change.
