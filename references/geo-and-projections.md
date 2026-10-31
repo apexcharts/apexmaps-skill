@@ -141,7 +141,7 @@ ApexMaps.registerLayout('nl/provinces@hex', {
 
 `cells` is `key -> [col, row]`, row 0 north and col 0 west. Optional pack fields: `grid` (`'hex'` default, `'square'`), `orientation` (`'pointy'` default, `'flat'`), `offset` (`'odd-r'`/`'even-r'` for pointy, `'odd-q'`/`'even-q'` for flat; mismatching orientation and offset throws rather than being reinterpreted), `gap` (default `0.06`, a property of the pack so two maps sharing a layout cannot disagree), `names`, `unplaced`, `compromises`, and the usual provenance fields. Two regions on one cell throws, because one of them would be invisible.
 
-Curating the table is the whole job: there is no canonical layout for any country, and a good one is a judgement about which real adjacencies matter most. Registering is free; **rendering** a grid layout is licensed, your own table included, because the gate is on drawing a region set as a grid rather than on whose table it is.
+Curating the table is the whole job: there is no canonical layout for any country, and a good one is a judgement about which real adjacencies matter most. Registering is not gated; **rendering** a grid layout is licensed, your own table included, because the gate is on drawing a region set as a grid rather than on whose table it is.
 
 ## Geometry beyond the registry
 
@@ -204,7 +204,7 @@ geo: { projection: { name: 'conicEqualArea', rotate: [-100, 0], parallels: [50, 
 geo: { projection: { name: 'orthographic', rotate: [53, 10], clipAngle: 90 } }
 ```
 
-The rest of the `d3-geo-projection` catalogue (Robinson, Mollweide, Winkel Tripel, ...) is registered by the consumer. Registering is free; rendering a map with a self-registered projection is a licensed feature (works without a key, with a watermark). Re-registering a built-in name over the built-in stays free, since the gate is by name.
+The rest of the `d3-geo-projection` catalogue (Robinson, Mollweide, Winkel Tripel, ...) is registered by the consumer. Registering is not gated; rendering a map with a self-registered projection is a licensed feature (works without a key, with a watermark). Re-registering a built-in name over the built-in stays free, since the gate is by name.
 
 ```js
 import { geoRobinson } from 'd3-geo-projection'
@@ -251,14 +251,14 @@ geo: {
 | `url` | required | Template. `{z}`, `{x}`, `{y}` are the tile; `{s}` is one of `subdomains`, picked by tile position so a tile always comes from the same host and stays cached. Without a `url` the layer is off. |
 | `subdomains` | `['a', 'b', 'c']` | A string is split into characters (`'abc'`). |
 | `attribution` | none | Plain-text credit line, shown in the corner while tiles are on screen, ahead of the pack's own attribution. |
-| `minZoom` | `0` | Web-map zoom level below which no tiles are drawn, so the map shows its own geometry until the reader has zoomed in this far. |
-| `maxZoom` | `19` | Highest level the server has; past it the last level is stretched rather than requested. |
-| `tileSize` | `256` | Tile edge in pixels at its own level. |
+| `minZoom` | `0` | Web-map zoom level below which no tiles are drawn, so the map shows its own geometry until the reader has zoomed in this far. Measured on the view, as `viewChange` reports it, so it does not move with `tileSize`. |
+| `maxZoom` | `19` | Highest `{z}` the server has, in its own levels; past it the last level is stretched rather than requested. |
+| `tileSize` | `256` | Tile edge in pixels at its own level. It decides which `{z}` is requested: 512px tiles cover the view one level shallower than 256px ones, so each draws at its own size (1.2.1+; 1.2.0 requested the 256px level and drew 512px tiles at half size). Set it to what the server cuts. |
 | `opacity` | `1` | Opacity of the whole tile layer. |
 | `request` | none | `(url, tile: TileCoord) => TileRequest \| Promise<TileRequest>`, where `TileCoord` is `{ z, x, y }` and `TileRequest` is `string \| { url, headers? }`. Called before every tile to sign a URL, add a key, or route through your proxy. A plain URL loads as an image; `{ url, headers }` is fetched with those headers and shown from a blob. A tile that fails is left out, not drawn broken. |
 
 - **Projection: `'webMercator'` (or `'mercator'` / `'epsg:3857'`), unturned.** That is the only projection the tiles were cut in, so a `rotate`, `angle`, `reflectX` or `reflectY` disqualifies it too. On any other projection the layer stays empty without an error, and debug mode (localhost, `file:`, or `debug: { enabled: true }`) logs `geo.tiles needs geo.projection 'webMercator' with no rotation`. No registry pack defaults to Mercator (US packs use `albersUsa`, NUTS packs an azimuthal), so always set `geo.projection` alongside `tiles`.
-- **Licensing is decided by the config, not the screen.** A `tiles.url` puts the watermark on without a key even while no tile is drawn (below `minZoom`, or on a projection the tiles cannot use), so the answer does not flicker with the zoom. The `viewChange` event below is free: a host drawing its own layer in step with the map owes nothing.
+- **Licensing is decided by the config, not the screen.** A `tiles.url` puts the watermark on without a key even while no tile is drawn (below `minZoom`, or on a projection the tiles cannot use), so the answer does not flicker with the zoom. The `viewChange` event below is not gated: a host drawing its own layer in step with the map owes nothing.
 - Tiles sit in the same transform as the geometry, so they pan and zoom with it frame for frame. A zoom keeps the outgoing level on screen until the new level's tiles in view have loaded, and waits for the camera to settle on a level before requesting it.
 - While tiles show, the automatic basemap (the land drawn under a point-only map) fades its fill and keeps its outlines. A choropleth is data and keeps its fill: give the series `opacity` if the streets should show through.
 - PNG and SVG exports leave the tiles out: an exported file cannot depend on a tile server and a key.
@@ -269,7 +269,7 @@ geo: {
 map.on('viewChange', ({ bounds, center, zoom, k }) => {
   // bounds: [[west, south], [east, north]] in lon/lat, or null
   // center: [lon, lat] at the middle of the plot, or null
-  // zoom:   web-map tile level, fractional; null off an unturned Mercator
+  // zoom:   the view's web-map zoom, fractional; null off an unturned Mercator
   // k:      camera scale, as in the `zoom` event
 })
 const view = map.getView()   // the same payload, now (for a listener added after render)
@@ -277,7 +277,7 @@ const view = map.getView()   // the same payload, now (for a listener added afte
 
 The payload type is `ViewChangePayload`, exported with `TileOptions`, `TileCoord` and `TileRequest`.
 
-`viewChange` fires synchronously with every pan and zoom frame, every frame of a globe turn, and on resize, plus once when `render()` finishes for a listener already attached (`chart.events.viewChange`, or `map.on` before `render()`). The bounds are sampled across the plot (exact on Mercator, close elsewhere) and are `null` when the projection cannot be inverted; they are only computed while something listens. It is free, with or without tiles.
+`viewChange` fires synchronously with every pan and zoom frame, every frame of a globe turn, and on resize, plus once when `render()` finishes for a listener already attached (`chart.events.viewChange`, or `map.on` before `render()`). The bounds are sampled across the plot (exact on Mercator, close elsewhere) and are `null` when the projection cannot be inverted; they are only computed while something listens. It is not gated, with or without tiles.
 
 ## Camera
 

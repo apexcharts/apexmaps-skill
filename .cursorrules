@@ -38,12 +38,14 @@ Check `package.json` before generating code:
    `world/countries` on `iso_a3`, admin-1 packs on ISO 3166-2 (`'JP-13'`),
    NUTS packs on `nuts_id`.
 6. Use `null`, never `undefined`, for missing values; values are numbers.
-7. Licensed features (work without a key, with a watermark): pixel, arc, line
+7. Licensed features (render with a watermark until a key is set): pixel, arc, line
    and hexbin series, hex tile layouts (`geo.layout: 'hex'`, an `@hex` pack id,
    or your own `registerLayout` table), raster tiles (`geo.tiles` with a url),
    pattern/image fills, marker clustering, drilldown, linked selection,
    annotations, story context, self-registered projections. The `viewChange`
-   event is free. `ApexMaps.setLicense('APEX-...')` removes the watermark.
+   event is not gated. `ApexMaps.setLicense('APEX-...')` removes the watermark.
+   No watermark is not the same as no licence needed: see the package's
+   LICENSE.md, and never call a map free to use because it renders clean.
 8. Defaults are publishable: do not add projection/palette/legend/tooltip
    options unless asked. Packs bring their own defaults (`us` uses `albersUsa`).
 

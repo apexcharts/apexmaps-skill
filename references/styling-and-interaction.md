@@ -46,7 +46,7 @@ scale: { type: 'log' }   // continuous, gradient legend
 | Categorical | `apex`, `tableau`, `okabeIto` |
 
 - Class colors are the palette's anchor stops resampled in OkLab at render time, so 4-class and 9-class maps of the same data stay perceptually consistent and midpoints do not go muddy grey.
-- `okabeIto` is flagged colorblind-safe and is the free tier's answer to color vision, alongside the automatic diverging selection.
+- `okabeIto` is flagged colorblind-safe and is the ungated answer to color vision, alongside the automatic diverging selection.
 - `theme: { palette: 'viridis' }` sets the default palette for series that omit one; `ApexMaps.registerPalette(name, palette)` adds your own, usable anywhere a `PaletteName` is.
 - For categories, pass a qualitative set as an explicit array: a classed scale samples a named palette as a ramp, and a blend of two categories is a color that means nothing.
 
@@ -270,9 +270,9 @@ The plot is sized in whole pixels, rounded down (since 1.2.0; it rounded to the 
 
 ## Licensing summary
 
-A map that answers a question is free; a map that becomes an application is licensed:
+A map that answers a question renders without a watermark; a map that becomes an application carries one until a key is set:
 
-| Free, always | Licensed |
+| No watermark, no key needed | Watermark until a key is set |
 |---|---|
 | `choropleth`, `bubble`, `marker` series, automatic basemap | Point clustering (`cluster`) |
 | All 16 built-in projections, with spec objects | Self-registered projections (`registerProjection`) |
@@ -287,12 +287,14 @@ A map that answers a question is free; a map that becomes an application is lice
 | The `viewChange` event and `getView()` | `pixel` series: a choropleth drawn as a lattice of dots |
 | `locale` | Raster tile underlay (`geo.tiles` with a `url`), gated as configured, even while no tile is on screen |
 
-The line the two columns follow: a map answering a question is free, and a map becoming an application is licensed. Summarising points into an aggregate the reader cannot get back to the originals from is on the licensed side whether it is done by distance (`cluster`) or by lattice (`hexbin`), and so is drawing the geography as something other than itself (grid layouts, pixel maps). The library hosts no tiles, so the tile gate is on the layer that draws them: a host that keeps a layer of its own in step through `viewChange` needs no key. Registering something costs nothing in either case; rendering it is what is gated, which is why a layout table you authored yourself is gated the same as a built-in one. The layout morph has no gate of its own, because it only ever runs on a layout toggle.
+The line the two columns follow: a map answering a question renders clean, and a map becoming an application is gated. Summarising points into an aggregate the reader cannot get back to the originals from is on the licensed side whether it is done by distance (`cluster`) or by lattice (`hexbin`), and so is drawing the geography as something other than itself (grid layouts, pixel maps). The library hosts no tiles, so the tile gate is on the layer that draws them: a host that keeps a layer of its own in step through `viewChange` needs no key. Registering something is never gated; rendering it is, which is why a layout table you authored yourself is gated the same as a built-in one. The layout morph has no gate of its own, because it only ever runs on a layout toggle.
 
 Licensed features work without a key, in full, **with a watermark on the map**, so they can be evaluated in your own app. No metering, no seat counting, no network calls.
+
+The watermark is a rendering gate, not the licence terms. Who needs a licence at all is set by the package's `LICENSE.md` (the Community licence has eligibility conditions), so a map that renders clean is not thereby free for every user.
 
 ```js
 ApexMaps.setLicense('APEX-xxxxxxxx') // before rendering; applies to every map on the page
 ```
 
-One key covers every Apex product, and the license is page-wide. Each library bundles its own copy of the license manager, but the copies keep the key and their change listeners in one shared slot, so `ApexCharts.setLicense(key)` also licenses ApexMaps, and a call made after a map has rendered clears its watermark straight away. Calling `ApexMaps.setLicense(key)` as well is harmless. ApexCharts' per-chart `chart.license` and `window.Apex.license` never reach a map: only a `setLicense` call sets the shared key. Accessibility is never gated, and the free tier keeps `okabeIto` plus the automatic diverging selection.
+One key covers every Apex product, and the license is page-wide. Each library bundles its own copy of the license manager, but the copies keep the key and their change listeners in one shared slot, so `ApexCharts.setLicense(key)` also licenses ApexMaps, and a call made after a map has rendered clears its watermark straight away. Calling `ApexMaps.setLicense(key)` as well is harmless. ApexCharts' per-chart `chart.license` and `window.Apex.license` never reach a map: only a `setLicense` call sets the shared key. Accessibility is never gated, and the ungated tier keeps `okabeIto` plus the automatic diverging selection.

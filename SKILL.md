@@ -19,8 +19,8 @@ description: >
   core API.
 metadata:
   author: ApexCharts
-  version: "1.3.0"
-  library_version: "1.2.0"
+  version: "1.3.1"
+  library_version: "1.2.1"
   category: data-visualization
   tags: [maps, choropleth, pixel-map, hexbin, tilegram, geojson, topojson, geographic, charts, apexmaps]
   docs: https://apexcharts.com/docs/apexmaps/
@@ -89,15 +89,16 @@ See `references/framework-wrappers.md`.
    `scale.nullColor` and stay out of the scale.
 8. **Values must be numbers** (or `null`). The default value field is `value`;
    override with `valueField` or per-series accessors.
-9. **Licensed features work without a key, with a watermark**: `pixel`,
+9. **Licensed features render with a watermark until a key is set**: `pixel`,
    `arc`, `line` and `hexbin` series, grid layouts (`geo.layout: 'hex'`, an
    `@hex` pack id, or your own `registerLayout` table), the raster tile
    underlay (`geo.tiles` with a `url`, gated as configured even while no tile
    is drawn), pattern/image fills, marker clustering, drilldown, linked
    selection (`link`), annotations, story context, and self-registered
-   projections. The license places these in the Premium plan and above.
-   Everything else renders clean without a key and is free under the
-   Community terms, including the `viewChange` event and `locale`.
+   projections. Everything else renders without a watermark, including the
+   `viewChange` event and `locale`. No watermark is not the same as no
+   licence needed: the terms in the package's `LICENSE.md` decide who needs
+   one, so never tell a user a map is free to use because it renders clean.
    `ApexMaps.setLicense('APEX-...')` before rendering removes the watermark.
    One Apex key covers every product, and the license is page-wide:
    `ApexCharts.setLicense(key)` licenses ApexMaps too, and clears the
@@ -261,9 +262,10 @@ Events (`ApexMapsEventMap`): `rendered`, `updated`, `resized`,
 
 `viewChange` fires on every pan, zoom and globe-turn frame and on resize,
 synchronously with the frame, with `{ bounds: [[west, south], [east, north]]
-| null, center: [lon, lat] | null, zoom, k }`. `zoom` is the web-map tile
-level (fractional), and `null` on anything but an unturned Web Mercator. It is
-free, and computed only while something listens.
+| null, center: [lon, lat] | null, zoom, k }`. `zoom` is the view's web-map
+zoom (fractional; with 256px tiles it is also the tile level), and `null` on
+anything but an unturned Web Mercator. It is not gated, and is computed only
+while something listens.
 
 ## 6. Geometry Registry
 
@@ -339,9 +341,12 @@ geo: {
   own default such as `albersUsa`, the layer stays empty with no error; debug
   mode says why.
 - Other keys: `subdomains` (`{s}`, default `['a', 'b', 'c']`), `maxZoom`
-  (default 19, stretched past it), `opacity` (default 1), `tileSize` (default
-  256), and `request(url, { z, x, y })` returning a URL or `{ url, headers }`
-  (may be async) to sign, key, or proxy each tile.
+  (the server's highest `{z}`, default 19, stretched past it), `opacity`
+  (default 1), `tileSize` (default 256; set it to what the server cuts, since
+  it decides which `{z}` is requested: 512px tiles come from one level
+  shallower), and `request(url, { z, x, y })` returning a URL or
+  `{ url, headers }` (may be async) to sign, key, or proxy each tile.
+  `minZoom` is the view's zoom, as `viewChange` reports it.
 - While tiles show, the automatic basemap's fill gives way; a choropleth keeps
   its fill, so give it `opacity` if the streets should show through. Exports
   leave the tiles out.

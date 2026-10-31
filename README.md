@@ -29,7 +29,7 @@ AI models routinely get map code wrong: swapping `[lon, lat]` into `[lat, lon]`,
 - **Scales and palettes**: quantile / Jenks / threshold and more, 17 palettes, automatic diverging selection
 - **Interaction**: camera moves (`flyTo`, `fitBounds`), selection and linked maps, drilldown, marker clustering, globe rotation
 - **Styling**: legends, tooltips, data labels, pattern and image fills, annotations, theming via `--apexmaps-*` tokens, `locale` for the map's own text
-- **Licensing**: which features are free vs licensed, and the evaluate-with-watermark model
+- **Licensing**: which features render with a watermark until a key is set, and the evaluate-with-watermark model
 - **Framework wrappers**: `react-apexmaps`, `vue-apexmaps`, `ngx-apexmaps`
 
 ## Installation
