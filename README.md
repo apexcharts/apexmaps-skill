@@ -20,14 +20,15 @@ AI models routinely get map code wrong: swapping `[lon, lat]` into `[lat, lon]`,
 
 ### Coverage
 
-- **The six series types**: choropleth (default), bubble, marker, hexbin, arc, line, and each one's datum shape
+- **The seven series types**: choropleth (default), pixel (a choropleth drawn as a lattice of dots), bubble, marker, hexbin, arc, line, and each one's datum shape
 - **Data joins**: `joinBy` forms, key auto-detection, `fuzzyJoin`, the join diagnostic, FIPS repair
 - **The geometry registry**: 26 built-in boundary packs (world, US states/counties, EU NUTS 0-3, admin-1 for 15 countries), aliases, recommended join keys
 - **Hex tile layouts**: the seven built-in tilegrams (`geo.layout: 'hex'`), what a layout changes about the map, the morph between boundaries and cells, `registerLayout`
 - **Projections**: 16 built-ins (20 accepted names with aliases), spec objects, per-pack defaults like `albersUsa`, `registerProjection`
+- **Raster tiles**: `geo.tiles` street tiles under a Web Mercator map, the `viewChange` event and `getView()`
 - **Scales and palettes**: quantile / Jenks / threshold and more, 17 palettes, automatic diverging selection
 - **Interaction**: camera moves (`flyTo`, `fitBounds`), selection and linked maps, drilldown, marker clustering, globe rotation
-- **Styling**: legends, tooltips, data labels, pattern and image fills, annotations, theming via `--apexmaps-*` tokens
+- **Styling**: legends, tooltips, data labels, pattern and image fills, annotations, theming via `--apexmaps-*` tokens, `locale` for the map's own text
 - **Licensing**: which features are free vs licensed, and the evaluate-with-watermark model
 - **Framework wrappers**: `react-apexmaps`, `vue-apexmaps`, `ngx-apexmaps`
 
@@ -77,9 +78,9 @@ const geo = await readFile(referencePath('geo-and-projections.md'), 'utf8');
 ├── SKILL.md                            # Main entry point, read this first
 ├── .cursorrules                        # Self-contained version for Cursor / Windsurf
 ├── references/
-│   ├── data-format.md                  # datum shapes per series type, joins, normalizeBy
-│   ├── geo-and-projections.md          # registry packs, hex tile layouts, custom geometry, projections, camera
-│   ├── styling-and-interaction.md      # scales, legends, selection, drilldown, theming, licensing
+│   ├── data-format.md                  # datum shapes per series type, joins, normalizeBy, pixel lattices
+│   ├── geo-and-projections.md          # registry packs, hex tile layouts, custom geometry, projections, tiles, camera
+│   ├── styling-and-interaction.md      # scales, legends, selection, drilldown, locale, theming, licensing
 │   └── framework-wrappers.md           # React, Vue, Angular
 └── install/
     ├── claude-code.md

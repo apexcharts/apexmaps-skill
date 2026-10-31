@@ -1,12 +1,12 @@
 # Styling and Interaction: Scales, Legends, Selection, Drilldown, Theming
 
-## Scales (choropleth and hexbin `scale`, bubble/arc/line `colorScale`)
+## Scales (choropleth, pixel and hexbin `scale`, bubble/arc/line `colorScale`)
 
 `ScaleOptions` fields:
 
 | Option | Default | Notes |
 |---|---|---|
-| `type` | `'quantile'` (choropleth default, 5 classes) | See the 10 types below. |
+| `type` | `'quantile'` (choropleth and pixel default, 5 classes) | See the 10 types below. |
 | `classes` | `5` | Class count for classed scales. |
 | `palette` | auto (see below) | Registered name, or an explicit color array (taken literally, never resampled). |
 | `domain` | data extent | `[min, max]` override. |
@@ -75,7 +75,7 @@ Bubble series get a **nested-circle legend**: three concentric reference circles
 | `interactive` | `true` | Click a class to mute it (fires `legendToggle`). |
 | `showNull` | `true` | Include the no-data swatch. |
 | `style` | `'auto'` | Continuous scales get `'gradient'`, classed get `'classes'`; set explicitly to force one. |
-| `formatter` | none | `(item, index) => string` per `LegendItem` (`{ color, label, from, to, count, isNull, pattern }`). |
+| `formatter` | none | `(item, index) => string` per `LegendItem` (`{ color, label, from, to, count, isNull, pattern, mark }`; `mark` is the `PixelShape` a pixel series draws its swatches with). |
 | `tickFormatter` | none | `(value) => string` for the numbers under a gradient bar (class boundaries, or the two ends). |
 | `marker` | on | Gradient legends only: an arrow that rides the bar and tracks the hovered feature, so the reader sees where it falls on the scale instead of matching colors by eye. `{ label: false }` keeps the arrow, drops the value above it. `false` removes it. |
 
@@ -125,7 +125,7 @@ link: { group: 'us-dashboard', filter: 'bidirectional' }
 
 ## Pattern and image fills (licensed)
 
-`fill` on a choropleth series adds a texture channel over the scale's flat color. Both `fill.pattern` and `fill.image` are licensed (work without a key, with a watermark). `image` wins where both are set. **No-data features are never textured**: an absence has to keep reading as an absence. Eight tile types: `dots`, `squares`, `checks` (filled shapes), `lines`, `grid`, `diagonal`, `crosshatch` (stroked lines), and `custom` with your own `path` drawn in a `size` by `size` box.
+`fill` on a choropleth series adds a texture channel over the scale's flat color (a `pixel` series takes no `fill`: its dots are the texture). Both `fill.pattern` and `fill.image` are licensed (work without a key, with a watermark). `image` wins where both are set. **No-data features are never textured**: an absence has to keep reading as an absence. Eight tile types: `dots`, `squares`, `checks` (filled shapes), `lines`, `grid`, `diagonal`, `crosshatch` (stroked lines), and `custom` with your own `path` drawn in a `size` by `size` box.
 
 | Pattern option | Default | Notes |
 |---|---|---|
@@ -207,12 +207,51 @@ Ways back up: the breadcrumb (real, keyboard-reachable buttons), Escape, or `dri
 
 Never license-gated, in any tier. Defaults: `enabled: true`, `description: 'auto'` (generated from the spec and data: map type, area count, range, class structure, extremes, no-data count), `dataTable: false` (a real, visually hidden table alongside the map: the reliable fallback for AT that cannot interpret spatial output), `keyboardFeatureLimit: 500`. One tab stop for the whole map; arrow keys walk features in reading order (banded top-to-bottom, then left-to-right), Home/End jump to the ends, Enter selects (and drills where a drilldown exists), Escape leaves. Above `keyboardFeatureLimit` features, walking switches off and the description plus data table remain the accessible path. Announcements replace a polite live region rather than appending, so fast travel does not flood the reader.
 
+## Locale: the map's own text
+
+Series names, legend titles, `a11y.label` / `a11y.description` and a breadcrumb's `rootLabel` are already yours. The top-level `locale` option translates what is left: the strings the map writes itself.
+
+```js
+locale: {                                   // LocaleOptions; every key optional
+  zoomControls: { group: 'Zoom', zoomIn: 'Agrandir', zoomOut: 'Réduire', reset: 'Réinitialiser la vue' },
+  breadcrumb: { label: 'Fil d’exploration', root: 'Toutes les zones' },
+  dataTable: { caption: 'Données de la carte', area: 'Zone', item: 'Élément', value: 'Valeur' },
+  noData: 'Aucune donnée',
+  sizeLegend: 'Tailles des cercles : {sizes}',
+  drilldown: {
+    announce: '{count} {level} affichés.',
+    announceIn: '{count} {level} affichés dans {where}. Échap pour revenir.',
+    areas: 'zones',
+  },
+}
+```
+
+| Key | English default | Used for |
+|---|---|---|
+| `zoomControls.group` | `'Zoom'` | The control group's accessible name |
+| `zoomControls.zoomIn` / `zoomOut` / `reset` | `'Zoom in'` / `'Zoom out'` / `'Reset view'` | Button accessible names and tooltips |
+| `breadcrumb.label` | `'Drilldown trail'` | The trail's accessible name |
+| `breadcrumb.root` | `'All areas'` | First crumb, when neither `drilldown.breadcrumb.rootLabel` nor the pack's level name gives one |
+| `dataTable.caption` / `area` / `item` / `value` | `'Map data'` / `'Area'` / `'Item'` / `'Value'` | The hidden `a11y.dataTable`: caption and value heading when the series has no name; first column on a region map / on a point, line or arc map |
+| `noData` | `'No data'` | A missing value in the tooltip, data table, keyboard announcement and legend no-data entry. A series' own `scale.nullLabel` still wins for its legend |
+| `sizeLegend` | `'Circle sizes: {sizes}'` | Accessible name of the bubble size legend |
+| `drilldown.announce` | `'Showing {count} {level}.'` | Screen-reader announcement at the top level |
+| `drilldown.announceIn` | `'Showing {count} {level} in {where}. Press Escape to go back.'` | Announcement below the top level; `{where}` is the trail |
+| `drilldown.areas` | `'areas'` | `{level}` when the map does not name its level |
+
+- Each key falls back to English on its own, and a group is merged rather than replaced, so translating `zoomIn` alone keeps the English `zoomOut`. An empty string is kept as a deliberate choice. Unknown keys are ignored.
+- Templates take `{name}` placeholders so a translation can put the count or the place wherever its grammar wants it.
+- `locale` follows `updateOptions` and `responsive` rules like any other option.
+
 ## Theming
 
 - `theme: { mode: 'light' | 'dark' | 'auto' }`. Default `'light'`. `'auto'` follows `prefers-color-scheme`; dark is a class (`apexmaps--dark`) on the container, so a dashboard can force it independently of the OS. Dark mode paints its own background; hand it back with `--apexmaps-bg: transparent`. The data palette is unchanged: what changes is chrome, no-data color, and text.
 - `theme.palette` names the default scale palette for series that omit one.
 - **Family tokens (0.4.0)**: the chrome roles that mean the same thing across the ApexCharts products fall back to the shared `--apx-*` family tokens, so a page can state its brand once on `:root` and the map follows along with the charts beside it. `--apexmaps-fg` falls back to `--apx-fore`, `--apexmaps-surface` to `--apx-surface`, `--apexmaps-border` to `--apx-grid`, `--apexmaps-focus` to `--apx-accent`. Precedence is `--apexmaps-*` set by the host, then the `--apx-*` token, then the built-in default. Two deliberate exceptions: `--apexmaps-bg` stays transparent in light mode so a tinted host card shows through, and the dark palette takes no family tokens at all (one set of `--apx-*` values describes one appearance, and a light brand surface applied to the dark palette is how you get white text on white). Override `--apexmaps-*` to theme dark mode.
-- CSS custom properties on the container restyle all chrome with no options: `--apexmaps-bg`, `--apexmaps-fg`, `--apexmaps-fg-muted`, `--apexmaps-surface`, `--apexmaps-border`, `--apexmaps-focus`, `--apexmaps-halo` (label halo), `--apexmaps-font-size` (`12px`), `--apexmaps-radius` (`6px`), `--apexmaps-shadow`, `--apexmaps-legend-bar` (vertical gradient bar height, `140px`), `--apexmaps-legend-width` (`180px`), `--apexmaps-muted-opacity` (`0.25`), `--apexmaps-anim` / `--apexmaps-anim-geom` (transition durations, written by the engine from `chart.animations`), `--apexmaps-zoom-idle-opacity` (`0.7`), and `--apexmaps-flow-duration` / `--apexmaps-flow-delay` / `--apexmaps-flow-travel` (flow bead animation, written by the renderer).
+- CSS custom properties restyle all chrome with no options, set on the map's element **or any ancestor**: `:root`, a dashboard panel, or the host element of a web component the map renders inside (since 1.1.1; before it, the library declared most of these on the map's element, so only a value set on that element itself took effect). Read by the stylesheet: `--apexmaps-bg`, `--apexmaps-fg`, `--apexmaps-fg-muted`, `--apexmaps-surface`, `--apexmaps-border`, `--apexmaps-focus`, `--apexmaps-halo` (label halo), `--apexmaps-font-size` (`12px`), `--apexmaps-radius` (`6px`), `--apexmaps-shadow`, `--apexmaps-legend-bar` (vertical gradient bar height, `140px`), `--apexmaps-zoom-idle-opacity` (`0.7`). Written inline on the map's element by the engine from options, so set those through the option instead: `--apexmaps-legend-width` (from `legend.width`, `180px`), `--apexmaps-muted-opacity` (from `states.muted.opacity`, `0.25`), `--apexmaps-anim` / `--apexmaps-anim-geom` (transition durations, from `chart.animations`); and `--apexmaps-flow-duration` / `--apexmaps-flow-delay` / `--apexmaps-flow-travel` (flow bead animation, written by the renderer).
+- A `--apexmaps-*` value applies in **both** modes wherever you set it, because the library only reads these names and never declares them. A brand colour on `:root` therefore also lands on the dark palette: give a token a separate dark value under `.apexmaps--dark` when the two should differ.
+- The same reason means your own CSS that reads an `--apexmaps-*` name you never set (say, in custom tooltip HTML) gets nothing back, where before 1.1.1 it got the library's value. Give such a `var()` its own fallback.
+- The stylesheet is injected when the first map mounts, at the start of `<head>`, so your rules at equal specificity win over the library's; a map inside a shadow root gets the stylesheet in that root.
 - `chart.context`: `'dashboard'` (default) or `'story'`. Story animates entrances (turns `animations.entrance` on) and is licensed; dashboard does not, because a dashboard reader wants the number now.
 - `chart.animations`: `{ enabled: true, speed: 'normal', entrance: false }`. `speed` is `'slow'` (700ms), `'normal'` (350ms), `'fast'` (180ms), `'instant'` (0), or a number in ms. Data updates (`updateSeries`, palette changes, legend toggles) tween fills, radii and stroke widths; camera-driven geometry never animates. Past a few thousand marks the engine degrades on its own: geometry transitions stop first, then everything. `prefers-reduced-motion` disables all of it; flow beads stay in place and stop traveling; drilldown becomes a plain swap. Nothing to configure. The hex layout morph runs at twice the configured speed (it has to be followed, not just noticed) and is the one transition with no cheap version to fall back to, so past the full motion budget it swaps rather than degrading.
 
@@ -226,6 +265,8 @@ responsive: [
 ```
 
 Rules match on the measured container width, the narrowest matching breakpoint wins, so declaration order does not matter. The map keeps the reader's position across a resize rather than refitting.
+
+The plot is sized in whole pixels, rounded down (since 1.2.0; it rounded to the nearest pixel before), after a left or right legend's column is taken out of the width. A container with a fractional height can therefore get a plot one pixel shorter than it used to.
 
 ## Licensing summary
 
@@ -243,8 +284,10 @@ A map that answers a question is free; a map that becomes an application is lice
 | Flat fills, PNG and SVG export, the accessibility layer | Pattern fills and image fills (`fill`) |
 | Registering geometry, layouts, projections and palettes | `hexbin` series: binned point density |
 | `chart.context: 'dashboard'`, the default | Hex tile layouts, however you reach them: `geo.layout: 'hex'`, an `@hex` pack id, or your own `registerLayout` table |
+| The `viewChange` event and `getView()` | `pixel` series: a choropleth drawn as a lattice of dots |
+| `locale` | Raster tile underlay (`geo.tiles` with a `url`), gated as configured, even while no tile is on screen |
 
-The line the two columns follow: a map answering a question is free, and a map becoming an application is licensed. Summarising points into an aggregate the reader cannot get back to the originals from is on the licensed side whether it is done by distance (`cluster`) or by lattice (`hexbin`), and so is drawing the geography as something other than itself (grid layouts). Registering something costs nothing in either case; rendering it is what is gated, which is why a layout table you authored yourself is gated the same as a built-in one. The layout morph has no gate of its own, because it only ever runs on a layout toggle.
+The line the two columns follow: a map answering a question is free, and a map becoming an application is licensed. Summarising points into an aggregate the reader cannot get back to the originals from is on the licensed side whether it is done by distance (`cluster`) or by lattice (`hexbin`), and so is drawing the geography as something other than itself (grid layouts, pixel maps). The library hosts no tiles, so the tile gate is on the layer that draws them: a host that keeps a layer of its own in step through `viewChange` needs no key. Registering something costs nothing in either case; rendering it is what is gated, which is why a layout table you authored yourself is gated the same as a built-in one. The layout morph has no gate of its own, because it only ever runs on a layout toggle.
 
 Licensed features work without a key, in full, **with a watermark on the map**, so they can be evaluated in your own app. No metering, no seat counting, no network calls.
 

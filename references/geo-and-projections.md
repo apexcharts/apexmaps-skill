@@ -1,4 +1,4 @@
-# Geometry and Projections: Registry, Custom Maps, Camera
+# Geometry and Projections: Registry, Custom Maps, Tiles, Camera
 
 ## The built-in registry: 26 boundary packs, 7 hex layouts
 
@@ -187,7 +187,7 @@ Default is `equalEarth`: a world thematic map in Web Mercator overstates high-la
 | Name | Aliases | Notes |
 |---|---|---|
 | `equalEarth` | | Default. Equal-area world. |
-| `mercator` | `webMercator`, `epsg:3857` | Conformal. |
+| `mercator` | `webMercator`, `epsg:3857` | Conformal. The only projection `geo.tiles` draws on (unturned). |
 | `equirectangular` | `plateCarree`, `epsg:4326` | Raw lon/lat layout. |
 | `naturalEarth` | | Compromise world. |
 | `orthographic` | | The globe. Drag rotates by default. |
@@ -222,7 +222,62 @@ ApexMaps.listProjections()          // now includes 'robinson'
 | `graticule` | `{ show: false, step: 20, color: 'rgba(128,128,128,0.25)', width: 0.5 }` | Meridian/parallel grid. |
 | `sphere` | `{ show: false, fill: 'none', stroke: 'rgba(128,128,128,0.4)', width: 0.5 }` | Outline (and fill) of the projected sphere; the disc edge on a globe. |
 | `fill` | | Fill for the no-data basemap drawn when no series is configured: a map with `geo` and no `series` still renders, as a basemap. |
+| `tiles` | off | Raster tile underlay; see below. |
 | `boundaries` | `'neutral-dashed'` | Disputed-territory policy. Declared but NOT applied yet; setting it warns in dev diagnostics. Do not rely on it. |
+
+## Raster tiles: `geo.tiles` (licensed)
+
+Street-map tiles from any server that cuts the world into `{z}/{x}/{y}` squares of spherical Mercator (a public slippy-map server, your own, or a commercial provider's raster endpoint), drawn under every series. Nothing is requested unless you give a `url`, so no map calls a third party its host did not configure.
+
+```js
+geo: {
+  map: 'us/states',
+  projection: 'webMercator',          // required, and no pack defaults to it
+  tiles: {
+    url: 'https://{s}.tiles.example.com/{z}/{x}/{y}.png',
+    subdomains: 'abc',                // default ['a', 'b', 'c']
+    attribution: '© Example contributors',
+    minZoom: 4,                       // default 0
+    maxZoom: 18,                      // default 19
+    opacity: 0.9,                     // default 1
+    tileSize: 256,                    // the default
+    request: (url, { z, x, y }) => ({ url, headers: { Authorization: 'Bearer ...' } }),
+  },
+}
+```
+
+| Option (`TileOptions`) | Default | Notes |
+|---|---|---|
+| `url` | required | Template. `{z}`, `{x}`, `{y}` are the tile; `{s}` is one of `subdomains`, picked by tile position so a tile always comes from the same host and stays cached. Without a `url` the layer is off. |
+| `subdomains` | `['a', 'b', 'c']` | A string is split into characters (`'abc'`). |
+| `attribution` | none | Plain-text credit line, shown in the corner while tiles are on screen, ahead of the pack's own attribution. |
+| `minZoom` | `0` | Web-map zoom level below which no tiles are drawn, so the map shows its own geometry until the reader has zoomed in this far. |
+| `maxZoom` | `19` | Highest level the server has; past it the last level is stretched rather than requested. |
+| `tileSize` | `256` | Tile edge in pixels at its own level. |
+| `opacity` | `1` | Opacity of the whole tile layer. |
+| `request` | none | `(url, tile: TileCoord) => TileRequest \| Promise<TileRequest>`, where `TileCoord` is `{ z, x, y }` and `TileRequest` is `string \| { url, headers? }`. Called before every tile to sign a URL, add a key, or route through your proxy. A plain URL loads as an image; `{ url, headers }` is fetched with those headers and shown from a blob. A tile that fails is left out, not drawn broken. |
+
+- **Projection: `'webMercator'` (or `'mercator'` / `'epsg:3857'`), unturned.** That is the only projection the tiles were cut in, so a `rotate`, `angle`, `reflectX` or `reflectY` disqualifies it too. On any other projection the layer stays empty without an error, and debug mode (localhost, `file:`, or `debug: { enabled: true }`) logs `geo.tiles needs geo.projection 'webMercator' with no rotation`. No registry pack defaults to Mercator (US packs use `albersUsa`, NUTS packs an azimuthal), so always set `geo.projection` alongside `tiles`.
+- **Licensing is decided by the config, not the screen.** A `tiles.url` puts the watermark on without a key even while no tile is drawn (below `minZoom`, or on a projection the tiles cannot use), so the answer does not flicker with the zoom. The `viewChange` event below is free: a host drawing its own layer in step with the map owes nothing.
+- Tiles sit in the same transform as the geometry, so they pan and zoom with it frame for frame. A zoom keeps the outgoing level on screen until the new level's tiles in view have loaded, and waits for the camera to settle on a level before requesting it.
+- While tiles show, the automatic basemap (the land drawn under a point-only map) fades its fill and keeps its outlines. A choropleth is data and keeps its fill: give the series `opacity` if the streets should show through.
+- PNG and SVG exports leave the tiles out: an exported file cannot depend on a tile server and a key.
+
+## `viewChange` and `getView()`: keeping your own layer in step
+
+```js
+map.on('viewChange', ({ bounds, center, zoom, k }) => {
+  // bounds: [[west, south], [east, north]] in lon/lat, or null
+  // center: [lon, lat] at the middle of the plot, or null
+  // zoom:   web-map tile level, fractional; null off an unturned Mercator
+  // k:      camera scale, as in the `zoom` event
+})
+const view = map.getView()   // the same payload, now (for a listener added after render)
+```
+
+The payload type is `ViewChangePayload`, exported with `TileOptions`, `TileCoord` and `TileRequest`.
+
+`viewChange` fires synchronously with every pan and zoom frame, every frame of a globe turn, and on resize, plus once when `render()` finishes for a listener already attached (`chart.events.viewChange`, or `map.on` before `render()`). The bounds are sampled across the plot (exact on Mercator, close elsewhere) and are `null` when the projection cannot be inverted; they are only computed while something listens. It is free, with or without tiles.
 
 ## Camera
 
@@ -268,4 +323,6 @@ interaction: {
 }
 ```
 
-Wheel zoom, pinch, and double-click still belong to the camera, so zoom and spin compose. A rotation is a projection change, not a camera transform: it reprojects every coordinate, coalesced to one pass per frame. Events: `rotate` fires while turning, `rotateEnd` once the glide settles, both with `{ rotate }`.
+Wheel zoom, pinch, and double-click still belong to the camera, so zoom and spin compose. A rotation is a projection change, not a camera transform: it reprojects every coordinate, coalesced to one pass per frame. Events: `rotate` fires while turning, `rotateEnd` once the glide settles, both with `{ rotate }`; `viewChange` fires on every frame of the turn too.
+
+A `pixel` series on a globe lays its lattice on the sphere, in rows along the parallels, so the dots turn with the world and foreshorten towards the horizon (see `data-format.md`).

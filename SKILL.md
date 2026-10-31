@@ -3,23 +3,26 @@ name: apexmaps
 description: >
   AI skill for building ApexMaps geographic data visualizations. Use whenever
   the user asks to create, configure, render, update, or troubleshoot a
-  choropleth map, bubble / proportional-symbol map, marker or point map, flow
-  map (arcs, great-circle routes, origin-destination), route/line map, hexbin
-  density map, or hex tile map (honeycomb, tilegram, cartogram) built with
-  `apexmaps`. Covers the six series types (choropleth, bubble, marker, hexbin,
-  arc, line), the built-in geometry registry (world countries, US states and
-  counties, EU NUTS 0-3, admin-1 for 15 countries) and its seven hex tile
-  layouts, data joins via `joinBy`, projections, classed and continuous
-  scales, palettes, drilldown, marker clustering, the camera API, annotations,
-  theming, and framework integration (React / Vue / Angular). In React / Vue / Angular projects,
-  prefer the framework wrapper packages (`react-apexmaps`, `vue-apexmaps`,
-  `ngx-apexmaps`) over the core API.
+  choropleth map, pixel / dot-lattice map, bubble / proportional-symbol map,
+  marker or point map, flow map (arcs, great-circle routes,
+  origin-destination), route/line map, hexbin density map, hex tile map
+  (honeycomb, tilegram, cartogram), or a map over raster street tiles built
+  with `apexmaps`. Covers the seven series types (choropleth, pixel, bubble,
+  marker, hexbin, arc, line), the built-in geometry registry (world countries,
+  US states and counties, EU NUTS 0-3, admin-1 for 15 countries) and its seven
+  hex tile layouts, data joins via `joinBy`, projections, the raster tile
+  underlay (`geo.tiles`), classed and continuous scales, palettes, drilldown,
+  marker clustering, the camera API and `viewChange`, annotations, theming,
+  `locale` for the map's built-in text, and framework integration (React /
+  Vue / Angular). In React / Vue / Angular projects, prefer the framework
+  wrapper packages (`react-apexmaps`, `vue-apexmaps`, `ngx-apexmaps`) over the
+  core API.
 metadata:
   author: ApexCharts
-  version: "1.2.0"
-  library_version: "1.0.0"
+  version: "1.3.0"
+  library_version: "1.2.0"
   category: data-visualization
-  tags: [maps, choropleth, hexbin, tilegram, geojson, topojson, geographic, charts, apexmaps]
+  tags: [maps, choropleth, pixel-map, hexbin, tilegram, geojson, topojson, geographic, charts, apexmaps]
   docs: https://apexcharts.com/docs/apexmaps/
   npm: apexmaps
   github: https://github.com/apexcharts/apexmaps
@@ -29,17 +32,19 @@ metadata:
 
 ApexMaps is a standalone geographic visualization library in the ApexCharts
 ecosystem (it does NOT require the `apexcharts` package or a global). It draws
-choropleths, proportional-symbol bubbles, markers, binned point density,
-great-circle arcs, and routes over a built-in geometry registry, so there is no
-GeoJSON to find, host, or parse for the common maps. It can also draw a region
-set as a hex tile map instead of its real boundaries.
+choropleths (as flat fills or as a lattice of dots), proportional-symbol
+bubbles, markers, binned point density, great-circle arcs, and routes over a
+built-in geometry registry, so there is no GeoJSON to find, host, or parse for
+the common maps. It can also draw a region set as a hex tile map instead of its
+real boundaries, or put raster street tiles under a Web Mercator map.
 
 > **Status: stable since 1.0.0.** The public API follows semantic versioning,
-> so breaking changes wait for a major version. The engine, all six series
+> so breaking changes wait for a major version. The engine, all seven series
 > types, hex tile layouts and the morph between them, projections, joins,
 > scales, fills, legend, tooltip, labels, annotations, camera, geometry
-> registry, drilldown, clustering, selection, and the accessibility layer are
-> shipped and tested. The story engine and map tiles are not built yet.
+> registry, drilldown, clustering, selection, the accessibility layer, `locale`
+> and the raster tile underlay are shipped and tested. The story engine is not
+> built yet.
 
 ## Framework wrapper detection: check `package.json` first
 
@@ -61,8 +66,11 @@ See `references/framework-wrappers.md`.
    `await map.render()`. `render()` is async because geometry packs load
    lazily. An instance is not reusable after `destroy()`.
 2. **No CSS import needed**: styles are inlined into the bundle and injected
-   automatically. Importing `apexmaps/apexmaps.css` explicitly (as the wrapper
-   READMEs show) is harmless and useful for CSP-strict setups.
+   when the first map mounts, into the root the map renders in: at the start
+   of `<head>` (so your own rules at equal specificity win), or into the
+   shadow root of a web component the map lives in. Importing
+   `apexmaps/apexmaps.css` explicitly (as the wrapper READMEs show) is
+   harmless and useful for CSP-strict setups.
 3. **Geometry comes from the registry**: `geo: { map: 'world/countries' }`.
    Use pack ids or their aliases (`'us'`, `'jp/prefectures'`, `'eu/nuts2'`)
    before reaching for a GeoJSON URL. Custom geometry: pass GeoJSON/TopoJSON
@@ -70,7 +78,8 @@ See `references/framework-wrappers.md`.
 4. **Coordinates are `[lon, lat]`**, longitude first, matching GeoJSON. A map
    whose points all sit on a vertical line through Africa has them swapped.
 5. **Choropleth is the default series type.** A series without `type` is a
-   choropleth (`chart.type` can seed a different default).
+   choropleth (`chart.type` can seed a different default). A `pixel` series
+   is the same choropleth drawn as dots: change the type, keep the data.
 6. **Join data with `joinBy`**: `'name'`, `['geoField', 'dataField']`, or
    `{ geo, data }`. When omitted, the join key is auto-detected. Each registry
    pack carries a recommended key (`us/states` joins on postal abbreviations
@@ -80,13 +89,15 @@ See `references/framework-wrappers.md`.
    `scale.nullColor` and stay out of the scale.
 8. **Values must be numbers** (or `null`). The default value field is `value`;
    override with `valueField` or per-series accessors.
-9. **Licensed features work without a key, with a watermark**: `arc`, `line`
-   and `hexbin` series, grid layouts (`geo.layout: 'hex'`, an `@hex` pack id,
-   or your own `registerLayout` table), pattern/image fills, marker
-   clustering, drilldown, linked selection (`link`), annotations, story
-   context, and self-registered projections. The license places these in the
-   Premium plan and above. Everything else renders clean without a key and is
-   free under the Community terms.
+9. **Licensed features work without a key, with a watermark**: `pixel`,
+   `arc`, `line` and `hexbin` series, grid layouts (`geo.layout: 'hex'`, an
+   `@hex` pack id, or your own `registerLayout` table), the raster tile
+   underlay (`geo.tiles` with a `url`, gated as configured even while no tile
+   is drawn), pattern/image fills, marker clustering, drilldown, linked
+   selection (`link`), annotations, story context, and self-registered
+   projections. The license places these in the Premium plan and above.
+   Everything else renders clean without a key and is free under the
+   Community terms, including the `viewChange` event and `locale`.
    `ApexMaps.setLicense('APEX-...')` before rendering removes the watermark.
    One Apex key covers every product, and the license is page-wide:
    `ApexCharts.setLicense(key)` licenses ApexMaps too, and clears the
@@ -104,6 +115,7 @@ bubble).
 | Type | Datum shape | Position source |
 |---|---|---|
 | `choropleth` (default) | `{ <joinKey>: 'FRA', value: 7.3, ... }` | joined to geometry by key |
+| `pixel` | the choropleth's rows, unchanged: `{ <joinKey>: 'FRA', value: 7.3, ... }` | joined to geometry by key, each region drawn as the lattice points inside it |
 | `bubble` | `{ lon, lat, value, name? }` (`lng` accepted for `lon`) | coordinates, or `joinBy` to feature centroids |
 | `marker` | `{ lon, lat, name?, value?, category?, shape?, color?, size? }` | coordinates, or `joinBy` to centroids |
 | `arc` | `{ from, to, value?, name? }`, `from`/`to` REQUIRED, each `[lon, lat]` or a geometry key like `'JFK'`/`'FRA'` | endpoints |
@@ -134,6 +146,18 @@ Key per-type notes:
   value by another field: counts across unequal areas mostly redraw the
   population map), `fuzzyJoin` (opt-in alias/normalized matching), `fill`
   (pattern/image, licensed), `drilldown` (licensed).
+- **pixel** (licensed): a choropleth drawn as a lattice of marks. Same
+  `joinBy`, `fuzzyJoin`, `normalizeBy`, `scale`, `valueField` and
+  `drilldown`, same legend, tooltip, selection and `featureClick`; no `fill`
+  (the dots are the texture) and no outline by default. `shape`: `'circle'`
+  (default), `'square'`, `'hexagon'`, `'diamond'`. `grid: 'geo'` (default)
+  fixes the dots to the ground, so zooming magnifies them; `grid: 'screen'`
+  keeps an even screen spacing and refines on zoom. `spacing` is DEGREES on a
+  geo grid (default about 120 dots across the map: 3 on a world map) and
+  screen PIXELS on a screen grid (default 8). `size` is a share of the
+  spacing (`'80%'` default; `'100%'` tiles edge to edge) or a number of
+  pixels. On an `orthographic` globe the lattice sits on the sphere and turns
+  with it; `grid: 'screen'` is refused there.
 - **bubble**: `size: { scale: 'sqrt' }` is the default on purpose (area, not
   radius, should encode the value); `colorScale` + `colorField` add a second
   encoding; `sortBySize: true` (default) keeps small bubbles clickable.
@@ -145,7 +169,8 @@ Key per-type notes:
   antimeridian; `curvature` is decorative and bypasses geodesic accuracy;
   `flow: true` (or options) sends beads along routes to show direction;
   `width`/`colorScale` scale by `value`; string endpoints resolve against
-  geometry keys (`joinBy` controls the field).
+  geometry keys, and `joinBy` names the geometry field they match
+  (`joinBy: 'name'` lets an endpoint read `'France'` on `world/countries`).
 - **line**: caller supplies the whole path (GPS trace, shipping lane); same
   `width`, `colorScale`, `endpoints`, `flow` options as arc.
 - **hexbin** (licensed): the right mark when there are more points than pixels.
@@ -167,7 +192,7 @@ Full details: `references/data-format.md`.
 | Key | Purpose |
 |---|---|
 | `chart` | width, height, default series `type`, background, fontFamily, `context: 'story' \| 'dashboard'`, `animations`, `events` |
-| `geo` | `map` (registry id / URL / GeoJSON / TopoJSON), `layout` (`'hex'` draws the region set as a hex tile map; licensed), `object`, `keyField`, `nameField`, `projection`, `view: { fit, padding }`, `graticule`, `sphere`, `fill`, `repairWinding` |
+| `geo` | `map` (registry id / URL / GeoJSON / TopoJSON), `layout` (`'hex'` draws the region set as a hex tile map; licensed), `object`, `keyField`, `nameField`, `projection`, `view: { fit, padding }`, `graticule`, `sphere`, `fill`, `repairWinding`, `tiles` (raster `{z}/{x}/{y}` underlay; needs `projection: 'webMercator'`; licensed) |
 | `series` | array of the union above |
 | `legend` | `position` (`bottom` default), `style: 'auto' \| 'classes' \| 'gradient'`, `interactive` (click to mute a class), `marker` (hover arrow on gradient bars), formatters |
 | `tooltip` | `formatter(context)` returning HTML, `valueFormatter`, `followCursor` |
@@ -176,6 +201,7 @@ Full details: `references/data-format.md`.
 | `theme` | `{ mode: 'light' \| 'dark' \| 'auto', palette }` |
 | `interaction` | `zoom` (wheel, doubleClick, `controls`), `pan` (+ inertia), `rotate` (globe drag on orthographic, `'auto'`), `selection` (box select with `modifier: 'shift'`), `nearest` (proximity hit assist) |
 | `a11y` | on by default: generated description, keyboard navigation, optional `dataTable` |
+| `locale` | the text the map writes itself: `zoomControls`, `breadcrumb`, `dataTable`, `noData`, `sizeLegend`, `drilldown` announcements. Each key falls back to English |
 | `annotations` | editorial layer: `points` (at `[lon, lat]`), `features` (by key, optional `outline`), `areas` (bounds or geometry). Licensed. |
 | `link` | `{ group }` cross-map linked selection. Licensed. |
 | `debug` | `joinDiagnostics` |
@@ -215,6 +241,7 @@ Instance methods and getters:
 | `zoomIn()`, `zoomOut()`, `zoom`, `rotateTo(angles)`, `rotation` | zoom and globe rotation |
 | `drillTo(key)`, `drillUp(levels?)`, `drillDepth` | drilldown navigation |
 | `toggleSelection(key)`, `setSelection(keys)`, `clearSelection()` | selection |
+| `getView()` | what is on screen now: `{ bounds, center, zoom, k }`, the `viewChange` payload |
 | `diagnoseJoin(seriesIndex?)` | the join mismatch report, on demand |
 | `toSpec()` | current options as a serializable object |
 | `getSvgString()`, `exportSVG()`, `exportPNG()`, `dataURI()` | export |
@@ -230,7 +257,13 @@ Statics: `ApexMaps.setLicense(key)`, `registerMap(id, source, meta?)`,
 Events (`ApexMapsEventMap`): `rendered`, `updated`, `resized`,
 `featureClick`, `featureHover`, `featureFocus`, `markClick`, `markHover`,
 `clusterClick`, `drilldown`, `drillup`, `selectionChange`, `legendToggle`,
-`zoom`, `panEnd`, `rotate`, `rotateEnd`.
+`zoom`, `panEnd`, `rotate`, `rotateEnd`, `viewChange`.
+
+`viewChange` fires on every pan, zoom and globe-turn frame and on resize,
+synchronously with the frame, with `{ bounds: [[west, south], [east, north]]
+| null, center: [lon, lat] | null, zoom, k }`. `zoom` is the web-map tile
+level (fractional), and `null` on anything but an unturned Web Mercator. It is
+free, and computed only while something listens.
 
 ## 6. Geometry Registry
 
@@ -283,8 +316,38 @@ geo: { map: 'us/states@hex' }       // the same layout, named directly
 - Licensed however you reach it: `geo.layout`, an `@hex` id, or your own
   `ApexMaps.registerLayout(id, { keyField, cells })` table.
 
-Full pack table, the layout table, custom geometry, projections, and the
-camera: `references/geo-and-projections.md`.
+### Raster tiles under the map (licensed)
+
+`geo.tiles` draws `{z}/{x}/{y}` raster tiles (any slippy-map server) under
+every series, in the same transform as the geometry. Nothing is requested
+without a `url`.
+
+```js
+geo: {
+  map: 'us/states',
+  projection: 'webMercator',   // REQUIRED: no pack defaults to it
+  tiles: {
+    url: 'https://tiles.example.com/{z}/{x}/{y}.png',
+    attribution: '© Example contributors',
+    minZoom: 4,                // no tiles until the reader zooms in this far
+  },
+}
+```
+
+- Tiles draw only on `'webMercator'` (or `'mercator'` / `'epsg:3857'`) with no
+  rotation, angle or reflection. On any other projection, including a pack's
+  own default such as `albersUsa`, the layer stays empty with no error; debug
+  mode says why.
+- Other keys: `subdomains` (`{s}`, default `['a', 'b', 'c']`), `maxZoom`
+  (default 19, stretched past it), `opacity` (default 1), `tileSize` (default
+  256), and `request(url, { z, x, y })` returning a URL or `{ url, headers }`
+  (may be async) to sign, key, or proxy each tile.
+- While tiles show, the automatic basemap's fill gives way; a choropleth keeps
+  its fill, so give it `opacity` if the streets should show through. Exports
+  leave the tiles out.
+
+Full pack table, the layout table, custom geometry, projections, tiles, and
+the camera: `references/geo-and-projections.md`.
 
 ## 7. Pitfalls: Wrong vs Correct
 
@@ -337,14 +400,28 @@ camera: `references/geo-and-projections.md`.
       exactly like the option being ignored.
     - Correct: use one of the seven, or register your own table with
       `ApexMaps.registerLayout()`.
+13. **Tiles on the pack's default projection**
+    - Wrong: `geo: { map: 'us', tiles: { url } }`. The US packs default to
+      `albersUsa`, and every other map to its pack's projection or
+      `equalEarth`, never a Mercator, so the tile layer silently stays empty
+      (and is still watermarked without a key).
+    - Correct: `geo: { map: 'us', projection: 'webMercator', tiles: { url } }`.
+14. **Feeding points to a pixel map**
+    - Wrong: `{ type: 'pixel', data: [{ lon, lat, value }] }`. A pixel series
+      is a choropleth: it joins rows to regions and has no point positions.
+    - Correct: region-keyed rows for `pixel`; raw points want `hexbin`.
 
 ## 8. Theming
 
 - `theme: { mode: 'auto' }` follows `prefers-color-scheme`; `'light'` /
   `'dark'` force it. `theme.palette` names the default scale palette.
 - CSS custom properties (`--apexmaps-bg`, `--apexmaps-fg`,
-  `--apexmaps-surface`, `--apexmaps-focus`, `--apexmaps-font-size`,
-  `--apexmaps-legend-width`, ...) restyle chrome without options.
+  `--apexmaps-surface`, `--apexmaps-focus`, `--apexmaps-font-size`, ...)
+  restyle chrome without options. Set them on the map's element or on any
+  ancestor (`:root`, a dashboard panel, a shadow host). A value applies in
+  light and dark mode alike; give dark its own under `.apexmaps--dark`. The
+  library only reads these names, so your own CSS reading an unset
+  `--apexmaps-*` gets nothing: give it a fallback.
 - 17 built-in palettes (`blues`, `viridis`, `rdbu`, `okabeIto`, `apex`, ...);
   diverging palettes are picked automatically when the domain crosses zero.
 - `prefers-reduced-motion` disables animations, flow beads keep their dots in
@@ -356,7 +433,7 @@ Details: `references/styling-and-interaction.md`.
 
 | Topic | Reference File |
 |---|---|
-| Datum shapes per series type, joins (`joinBy`, `fuzzyJoin`, diagnostics), `normalizeBy`, FIPS repair, hexbin binning and aggregates | `references/data-format.md` |
-| Registry packs and aliases, hex tile layouts and the morph, `registerMap`, `registerLayout`, custom GeoJSON/TopoJSON, `setGeoSource`, projections and spec objects, camera API | `references/geo-and-projections.md` |
-| Scales, palettes, size scales, legends, tooltips, data labels, pattern/image fills, states, selection, linked maps, drilldown, zoom controls, a11y, theming, responsive, licensing | `references/styling-and-interaction.md` |
+| Datum shapes per series type, joins (`joinBy`, `fuzzyJoin`, diagnostics), `normalizeBy`, FIPS repair, pixel lattices (shape, grid, spacing, size), hexbin binning and aggregates | `references/data-format.md` |
+| Registry packs and aliases, hex tile layouts and the morph, `registerMap`, `registerLayout`, custom GeoJSON/TopoJSON, `setGeoSource`, projections and spec objects, raster tiles (`geo.tiles`), camera API, `viewChange` / `getView()` | `references/geo-and-projections.md` |
+| Scales, palettes, size scales, legends, tooltips, data labels, pattern/image fills, states, selection, linked maps, drilldown, zoom controls, a11y, `locale`, theming, responsive, licensing | `references/styling-and-interaction.md` |
 | React / Vue / Angular wrappers | `references/framework-wrappers.md` |

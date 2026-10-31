@@ -7,6 +7,7 @@
 ```ts
 type Series =
   | ChoroplethSeriesOptions   // type?: 'choropleth'  (the default)
+  | PixelSeriesOptions        // type: 'pixel'  (licensed): a choropleth drawn as dots
   | BubbleSeriesOptions       // type: 'bubble'
   | MarkerSeriesOptions       // type: 'marker'
   | HexbinSeriesOptions       // type: 'hexbin' (licensed)
@@ -17,7 +18,7 @@ type Series =
 - A series without `type` is a **choropleth**. `chart.type` seeds the default for series that omit it.
 - An unknown `type` does not throw: the series is skipped with a dev warning naming it.
 - Mixing types on one map is normal (bubbles or arcs over a choropleth).
-- `arc`, `line` and `hexbin` series and marker clustering are licensed: they work without a key for evaluation, with a watermark.
+- `pixel`, `arc`, `line` and `hexbin` series and marker clustering are licensed: they work without a key for evaluation, with a watermark.
 
 ## Coordinate order
 
@@ -97,6 +98,52 @@ join: 3/6 data rows matched 3/177 features (geometry key "name", data key "name"
 ```
 
 The same report prints to the console automatically in dev mode (localhost or `file:`, or `debug: { enabled: true }`) whenever rows went unmatched, repairs were applied, or nothing matched. `debug: { joinDiagnostics: false }` silences it. A series with a `drilldown` is expected to have unmatched rows (they belong to other levels), and the diagnostic says so.
+
+## Pixel series (licensed)
+
+```js
+{
+  type: 'pixel',
+  name: 'Unemployment rate',
+  joinBy: ['iso_a3', 'code'],
+  data: rows,                 // the choropleth's rows: { code, value }
+  shape: 'hexagon',
+  spacing: 2.5,               // degrees, on the default geo grid
+  size: '90%',                // of the spacing
+  scale: { palette: 'viridis' },
+}
+```
+
+```js
+// A hexagon globe (geo.projection 'orthographic'): the lattice sits on the sphere and turns with it
+series: [{ type: 'pixel', joinBy: ['iso_a3', 'code'], data: rows, shape: 'hexagon', grid: 'geo', spacing: 2.5, size: '88%', equalArea: true }]
+
+// Squares laid as a brick wall on a screen grid: spacing and size in pixels
+series: [{ type: 'pixel', joinBy: ['iso_a3', 'code'], data: rows, shape: 'square', lattice: 'staggered', grid: 'screen', spacing: 6, size: 5 }]
+```
+
+A choropleth with a different mark. A lattice is laid over the map, every lattice point that lands inside a region becomes one of that region's dots, drawn whole (never cut at a border), and the borders themselves are never drawn: the reader finds them where one colour gives way to the next. Change `type` on an existing choropleth and it draws.
+
+- **The data side is the choropleth's, unchanged.** Same rows (`{ <joinKey>, value, ...extra }`), same `joinBy`, `fuzzyJoin`, `normalizeBy`, `valueField`, `scale` (default `{ type: 'quantile', classes: 5 }`), legend, tooltip, selection, keyboard focus and `drilldown`. No-data regions get `scale.nullColor` dots. Nothing is required beyond what a choropleth needs.
+- **Each region is still one element**: all its dots are one path, with its real outline under them as an invisible hit target, so the gaps between dots answer to the pointer as the region. Events are the choropleth's (`featureClick`, `featureHover`), never `markClick`.
+- What it does not take: `fill` (pattern/image fills: the dots are the texture). The default `stroke` is none, because an outline round every dot thickens the ink until it reads as a darker class.
+- Legend swatches are drawn as four of the map's own dots.
+
+| Option | Default | Notes |
+|---|---|---|
+| `shape` | `'circle'` | `'circle' \| 'square' \| 'hexagon' \| 'diamond'` (`PixelShape`). An unknown value draws circles. |
+| `grid` | `'geo'` | `'geo'` fixes the lattice to the ground: it is laid evenly over the map as it opens, every dot is a place, so zooming magnifies the dots and nothing is resampled. `'screen'` lays it on the screen: an even screen spacing whatever the projection does, resampled at quantized zoom levels (the ones clustering and hexbins use), so a zoom refines the lattice instead of magnifying it. |
+| `spacing` | geo: about 120 dots across the map, rounded to a readable step (3 on a world map, a fraction of a degree on one country); screen: `8` | Dot to dot: **degrees** on a `'geo'` grid (measured at the middle of the map), **screen pixels** on a `'screen'` grid. Not a positive number: a dev warning and the default. The geo default is measured over the longitude span of ALL the geometry, not the fitted view, so a pack whose default view crops far-flung parts (`fr/admin1`'s overseas departments, `au/admin1`) gets a coarse default: set `spacing` yourself there. |
+| `size` | `'80%'` | A percentage of `spacing` (`` `${number}%` ``), or a number of pixels at the zoom the map opened at. At `'100%'` the shapes meet edge to edge (squares make a solid grid, hexagons and diamonds tile); larger values are clamped there. |
+| `lattice` | from the shape | `'square' \| 'staggered'`. Squares default to `'square'`; circles, hexagons and diamonds to `'staggered'` (every other row shifted half a step). Row spacing follows from shape and lattice so each shape tiles. A staggered square is a brick wall. |
+| `equalArea` | `true` | Globe only: thins each row towards the poles so every dot covers the same ground. Set on a flat map it is reported in dev mode and ignored. |
+
+Plus the common fields: `name`, `visible`, `opacity`, `stroke`, `labels`, `animation`, `valueField`.
+
+- **On a globe** (`orthographic`) the lattice is laid on the sphere in rows along the parallels, so it turns with the world, and dots foreshorten towards the horizon. `grid: 'geo'` is the only grid a globe takes: `grid: 'screen'` there is refused with a dev warning and drawn on `'geo'`.
+- **No region is lost for being small.** A region the lattice steps over (an island, a city state) still gets one dot, at the nearest free lattice point or one borrowed from a neighbour with dots to spare. A region that still misses out is named in dev-mode advice, which suggests a smaller `spacing`.
+- A dot count is an area, so the choropleth's advice holds: colour by rates, not raw counts (`normalizeBy`).
+- A pixel map is not a hexbin: pixel takes region-keyed rows and draws each region's own lattice points; a hexbin takes `{ lon, lat }` points and has no regions in it.
 
 ## Bubble series
 
@@ -200,7 +247,7 @@ Plus the common fields: `name`, `visible`, `opacity`, `stroke`, `valueField`.
 }
 ```
 
-- Datum: `{ from, to, value?, name?, id?, ...extra }`. **`from` and `to` are required.** Each is a `[lon, lat]` pair or a geometry-key string resolved against the current map and placed at that feature's centroid, so `{ from: 'SGP', to: 'FRA' }` works on `world/countries` (key `iso_a3`); `joinBy` controls the field strings resolve against. A datum whose endpoint resolves to nothing is dropped and counted in a dev warning: "use [lon, lat] pairs, or geometry keys that exist in the current map".
+- Datum: `{ from, to, value?, name?, id?, ...extra }`. **`from` and `to` are required.** Each is a `[lon, lat]` pair or a geometry-key string resolved against the current map and placed at that feature's centroid, so `{ from: 'SGP', to: 'FRA' }` works on `world/countries` (key `iso_a3`). `joinBy` names the geometry field strings resolve against, keyed the way a bubble or marker join is: `joinBy: 'name'` lets an endpoint read `'France'`. Only the geometry side of the spec applies (an endpoint is already the key, so there is no data field), and a key several features share resolves to the last of them. A datum whose endpoint resolves to nothing is dropped and counted in a dev warning: "use [lon, lat] pairs, or geometry keys that exist in the current map".
 - `geodesic: true` (default) follows the great circle and is cut at the antimeridian, so a trans-Pacific route re-enters on the other edge instead of streaking across the map. `geodesic: false` is a naive chord through screen space.
 - `curvature` (0 to about 1) bulges the arc perpendicular to its chord. Decorative: a curved arc is no longer the true path, so it is off by default and warns in dev mode.
 - `width` is the same `SizeOptions` shape bubbles use, driven by `value`; for line width the default scale is `'linear'` (width reads linearly, unlike circle area). `colorScale` colours by value; `color` is a single stroke.

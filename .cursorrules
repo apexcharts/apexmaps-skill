@@ -1,9 +1,10 @@
 # ApexMaps Rules
 
 You are working with ApexMaps (`apexmaps`), the geographic data visualization
-library in the ApexCharts ecosystem: choropleths, bubbles, markers, hexbin
-density, arcs, and routes over a built-in geometry registry, which can also be
-drawn as a hex tile map.
+library in the ApexCharts ecosystem: choropleths (flat or as pixel/dot
+lattices), bubbles, markers, hexbin density, arcs, and routes over a built-in
+geometry registry, which can also be drawn as a hex tile map or over raster
+street tiles.
 
 - Docs: https://apexcharts.com/docs/apexmaps/
 - npm: https://www.npmjs.com/package/apexmaps
@@ -22,25 +23,27 @@ Check `package.json` before generating code:
 
 1. `const map = new ApexMaps(el, options)` then `await map.render()`. render() is
    async (geometry packs load lazily). No CSS import is required (styles are
-   injected automatically; importing `apexmaps/apexmaps.css` is harmless).
+   injected when the first map mounts, into `<head>` or the map's shadow root;
+   importing `apexmaps/apexmaps.css` is harmless).
 2. Geometry comes from the registry: `geo: { map: 'world/countries' }`. Pack ids
    and aliases: `'world'`, `'us'` (states), `'us/counties'`, `'eu/nuts0'..'nuts3'`,
    `'jp/prefectures'`, `'fr/departments'`, and admin-1 for 15 countries. Only use
    a URL or inline GeoJSON/TopoJSON for geography the registry lacks.
 3. Coordinates are ALWAYS `[lon, lat]`, longitude first (GeoJSON order).
 4. `series` is a discriminated union; `type` is one of `choropleth` (default),
-   `bubble`, `marker`, `hexbin`, `arc`, `line`.
+   `pixel`, `bubble`, `marker`, `hexbin`, `arc`, `line`.
 5. Join data with `joinBy`: `'field'`, `['geoField', 'dataField']`, or
    `{ geo, data }`. Omitted = auto-detected. Recommended keys: `us` joins on
    postal abbreviations (`'CA'`), `us/counties` on 5-digit FIPS strings,
    `world/countries` on `iso_a3`, admin-1 packs on ISO 3166-2 (`'JP-13'`),
    NUTS packs on `nuts_id`.
 6. Use `null`, never `undefined`, for missing values; values are numbers.
-7. Licensed features (work without a key, with a watermark): arc, line and
-   hexbin series, hex tile layouts (`geo.layout: 'hex'`, an `@hex` pack id, or
-   your own `registerLayout` table), pattern/image fills, marker clustering,
-   drilldown, linked selection, annotations, story context, self-registered
-   projections. `ApexMaps.setLicense('APEX-...')` removes the watermark.
+7. Licensed features (work without a key, with a watermark): pixel, arc, line
+   and hexbin series, hex tile layouts (`geo.layout: 'hex'`, an `@hex` pack id,
+   or your own `registerLayout` table), raster tiles (`geo.tiles` with a url),
+   pattern/image fills, marker clustering, drilldown, linked selection,
+   annotations, story context, self-registered projections. The `viewChange`
+   event is free. `ApexMaps.setLicense('APEX-...')` removes the watermark.
 8. Defaults are publishable: do not add projection/palette/legend/tooltip
    options unless asked. Packs bring their own defaults (`us` uses `albersUsa`).
 
@@ -49,6 +52,7 @@ Check `package.json` before generating code:
 | Type | Datum |
 |---|---|
 | choropleth | `{ <joinKey>: 'FRA', value: 7.3 }` rows, joined by key |
+| pixel | the choropleth's rows and join, drawn as dots; `shape` circle (default) / square / hexagon / diamond, `grid: 'geo'` (default, spacing in degrees) or `'screen'` (spacing in px, default 8), `size` `'80%'` of spacing or px; no `fill`; licensed |
 | bubble | `{ lon, lat, value, name? }` (`lng` accepted), or joinBy to centroids; sqrt sizing by default |
 | marker | `{ lon, lat, name?, category?, shape?, color?, size? }`; shapes: circle, square, diamond, triangle, star, cross, pin; `cluster: {...}` is an option, never a series type |
 | arc | `{ from, to, value?, name? }`; from/to REQUIRED, each `[lon, lat]` or a geometry key; `geodesic: true` default; `flow: true` animates direction |
@@ -69,10 +73,20 @@ await map.render()
 
 ## Top-level options
 
-`chart`, `geo` (map, layout, projection, view, graticule, sphere), `series`, `legend`,
+`chart`, `geo` (map, layout, projection, view, graticule, sphere, tiles), `series`, `legend`,
 `tooltip`, `dataLabels`, `states`, `theme` (`{ mode: 'light'|'dark'|'auto', palette }`),
-`interaction` (zoom/pan/rotate/selection/nearest), `a11y`, `annotations` (licensed),
-`link` (licensed), `debug`, `responsive`.
+`interaction` (zoom/pan/rotate/selection/nearest), `a11y`, `locale` (the map's own
+strings: zoomControls, breadcrumb, dataTable, noData, sizeLegend, drilldown),
+`annotations` (licensed), `link` (licensed), `debug`, `responsive`.
+
+```js
+// Street tiles: ONLY on an unturned webMercator, which no pack defaults to.
+geo: {
+  map: 'us/states',
+  projection: 'webMercator',
+  tiles: { url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: '...', minZoom: 4 },
+}
+```
 
 ## Lifecycle and API
 
@@ -80,7 +94,8 @@ await map.render()
 - Update anything else: `await map.updateOptions(partial)`.
 - Events: `map.on('featureClick', ({ key, name, value, datum }) => {...})`;
   also `featureHover`, `markClick`, `drilldown`, `selectionChange`, `zoom`,
-  `rendered`, `rotate`, ...
+  `rendered`, `rotate`, `viewChange` (every pan/zoom frame:
+  `{ bounds, center, zoom, k }`; `map.getView()` returns the same now), ...
 - Camera: `map.camera.flyTo({ center: [lon, lat], zoom })`, `easeTo`, `jumpTo`,
   `fitBounds`; instance: `frameFeature(key)`, `resetView()`, `zoomIn/zoomOut`,
   `rotateTo`.
@@ -108,7 +123,11 @@ await map.render()
 - Projections beyond the 20 built-in names need `ApexMaps.registerProjection()`
   first; palettes beyond the 17 built-ins need `ApexMaps.registerPalette()`.
 - A hexbin has NO `joinBy`: it bins `{ lon, lat }` points. Rows keyed to regions
-  are a choropleth, never a hexbin over centroids.
+  are a choropleth (or a `pixel` series), never a hexbin over centroids.
+- `geo.tiles` without `geo.projection: 'webMercator'` draws nothing (no error);
+  no map defaults to Mercator (`us` uses `albersUsa`, most maps `equalEarth`).
+- `--apexmaps-*` CSS variables work on any ancestor and apply in light AND dark
+  mode; set dark values under `.apexmaps--dark`.
 - `geo.layout: 'hex'` exists for seven region sets only (`us`, `au`, `ca`, `de`,
   `br`, `jp`, `eu/nuts0`); anywhere else it THROWS rather than falling back to
   real boundaries. Cells keep the boundary pack's join key, so the data does not

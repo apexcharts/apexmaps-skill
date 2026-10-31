@@ -1,6 +1,6 @@
 # Framework Wrappers: React, Vue, Angular
 
-Official wrappers live in the apexmaps repo (`wrappers/react`, `wrappers/vue`, `wrappers/angular`) and are versioned in step with the core (`1.0.0`, peer dependency `apexmaps ^1.0.0`). Keep a wrapper and the core on the same major: a 0.4.x wrapper peers `apexmaps ^0.4.0`, which excludes 1.x. Each is built for its own framework's change model rather than adapted from the React one, and all are typed against the core package's own types (`ApexMapsOptions`, `Series`, `ApexMapsEventMap`), so there is no second options schema to learn. A Svelte wrapper is planned but does not exist yet: in Svelte, use the core API directly.
+Official wrappers live in the apexmaps repo (`wrappers/react`, `wrappers/vue`, `wrappers/angular`) and are versioned in step with the core (`1.2.0`, peer dependency `apexmaps ^1.2.0`). Install a wrapper next to a core at least as new as its own version: the 1.2.0 wrappers need `apexmaps` 1.2.0 for `viewChange`, and a 0.4.x wrapper peers `apexmaps ^0.4.0`, which excludes 1.x. Each is built for its own framework's change model rather than adapted from the React one, and all are typed against the core package's own types (`ApexMapsOptions`, `Series`, `ApexMapsEventMap`), so there is no second options schema to learn. A Svelte wrapper is planned but does not exist yet: in Svelte, use the core API directly.
 
 ## Which package
 
@@ -12,7 +12,7 @@ Official wrappers live in the apexmaps repo (`wrappers/react`, `wrappers/vue`, `
 | Svelte | none yet | Svelte wrapper is planned, not built; use the core API |
 | Anything else | `apexmaps` core | `new ApexMaps(el, options)` then `await map.render()` |
 
-No CSS import is needed in any of them: styles are injected by the core (`apexmaps/apexmaps.css` exists for CSP-strict setups only).
+No CSS import is needed in any of them: styles are injected by the core when the first map mounts, into the document head or the shadow root the map renders in (`apexmaps/apexmaps.css` exists for CSP-strict setups only).
 
 ## Shared surface
 
@@ -26,7 +26,9 @@ All three wrappers take the same inputs:
 
 Anything else you pass (`class`/`className`, `style`, `id`, `aria-*`) lands on the outer element the framework owns; the inner element belongs to the map. Size with the `width`/`height` props, not CSS: `chart.height` defaults to `400` and an explicit number wins over the container, while `chart.width` defaults to `'100%'` and follows the container. `height="100%"` plus a styled container hands the height to the container.
 
-All 17 core events are forwarded: `rendered`, `updated`, `resized`, `featureClick`, `featureHover`, `featureFocus`, `markClick`, `markHover`, `clusterClick`, `drilldown`, `drillup`, `selectionChange`, `legendToggle`, `zoom`, `panEnd`, `rotate`, `rotateEnd`. Each handler receives the payload the core emits, fully typed (e.g. `featureClick` gets `{ key, name, value, datum }`). Every wrapper destroys the instance on unmount; you never call `destroy()` yourself.
+All 18 core events are forwarded: `rendered`, `updated`, `resized`, `featureClick`, `featureHover`, `featureFocus`, `markClick`, `markHover`, `clusterClick`, `drilldown`, `drillup`, `selectionChange`, `legendToggle`, `zoom`, `panEnd`, `rotate`, `rotateEnd`, `viewChange`. Each handler receives the payload the core emits, fully typed (e.g. `featureClick` gets `{ key, name, value, datum }`, `viewChange` gets `{ bounds, center, zoom, k }`). Every wrapper destroys the instance on unmount; you never call `destroy()` yourself.
+
+`viewChange` (1.2.0 wrappers) fires on every pan, zoom and globe-turn frame, so keep its handler cheap: update a ref, a signal, or a layer of your own, not a whole component tree. React: `onViewChange`; Vue: `@view-change` / `@viewChange`; Angular: `(viewChange)`, which arrives outside the zone (see below).
 
 One core behavior to remember in declarative code: `updateOptions` merges, so removing a key from `options` does not reset it. Pass the off value (`dataLabels: { enabled: false }`) instead of omitting the key.
 
@@ -66,7 +68,7 @@ export default function WorldMap() {
 ```
 
 - Extra prop: `mapRef` (`{ current: ApexMaps | null }`, e.g. a `useRef(null)`) receives the live instance for the imperative API: `map.current?.frameFeature('IND')`, `camera.flyTo(...)`, `drillTo(...)`, `exportPNG()`, `diagnoseJoin()`. Nulled on unmount.
-- Events are props named `on` + capitalized event name: `onRendered` ... `onFeatureClick` ... `onRotateEnd`. Handlers are read at emit time, so inline arrow functions cost nothing and never miss an event.
+- Events are props named `on` + capitalized event name: `onRendered` ... `onFeatureClick` ... `onRotateEnd`, `onViewChange`. Handlers are read at emit time, so inline arrow functions cost nothing and never miss an event.
 - Update model: props are compared deeply, so a fresh but equal `options` object on every parent render is not a redraw. Functions (formatters) compare by source, not identity, so a formatter reading changed state through its closure is not seen: lift such values into `options` as data. `geo.map` is compared by identity and never walked: pass a stable reference (module constant, `useMemo`, or a pack id string), or every render reprojects. Series-only changes route to `updateSeries` and tween; anything else goes to `updateOptions`. Camera position, selection, and drilldown depth survive an options change.
 - Ships a `'use client'` banner, so it works in Next.js App Router; the module is importable without a DOM but the map is not server rendered (the core has no HTML output path).
 
@@ -148,7 +150,7 @@ export class WorldMapComponent {
 
 - Standalone component with signal inputs (`options` is `input.required`), `OnPush`, no NgModule, no rxjs or zone.js requirement of its own. Peer deps: `apexmaps` and `@angular/core >= 20`.
 - One `output()` per core event under the core's own name: `(featureClick)`, `(selectionChange)`, `(rotateEnd)`, etc.
-- Zone contract: the map is constructed, rendered, and updated outside the Angular zone, so pointermove listeners never trigger change detection; outputs are emitted back inside the zone, so a handler that sets state repaints in zoned and zoneless apps alike (under zoneless, both calls degrade to plain function calls).
+- Zone contract: the map is constructed, rendered, and updated outside the Angular zone, so pointermove listeners never trigger change detection; outputs are emitted back inside the zone, so a handler that sets state repaints in zoned and zoneless apps alike (under zoneless, both calls degrade to plain function calls). The one exception is `(viewChange)`: it fires every pan and zoom frame, so it is delivered **outside** the zone. Write a signal in its handler (`(viewChange)="view.set($event)"`); a signal write schedules change detection on its own, while a plain field assignment made outside the zone schedules nothing.
 - Imperative API: the component exposes the live instance as a `map` signal. With a template ref `#map`, call `map.map()?.frameFeature('IND')` or `map.map()?.exportPNG()`. It is `null` until the first render and after destroy, so `effect()` on it to run something once the map exists.
 - Update model: bindings are compared deeply against a snapshot (a template expression like `[options]="build()"` hands over a new object every change detection cycle, so reference inequality cannot mean "changed"). Formatters compare by source; `geo.map` by identity, never walked. Signal inputs do not fire on in-place mutation, so prefer replacing objects; an earlier in-place mutation is picked up when any other input later changes. SSR-safe: the container renders on the server, the map is built in `afterNextRender`, which only runs in the browser.
 
